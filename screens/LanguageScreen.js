@@ -1,31 +1,73 @@
-import {StyleSheet, Text, View, FlatList, TouchableOpacity} from 'react-native';
-
-const dummySongs=[
-    {id: '1', title: 'Ya Nabi Salam Alayka', artist: 'Maher Zain'},
-    {id: '2', title: 'Mawlaya', artist: 'Sami Yusuf'},
-    {id: '3', title: 'Hasbi Rabbi Jallallah', artist: 'Mesut Kurtis'},
-    {id: '4', title: 'Tala Al Badru Alayna', artist: 'Traditional'},
-]
+import React, { useState, useCallback } from 'react';
+import {StyleSheet, Text, View, FlatList, TouchableOpacity, TextInput, ActivityIndicator} from 'react-native';
+import { supabase } from './supabase';
+import { useFocusEffect } from '@react-navigation/native';
 
 export default function LanguageScreen({route, navigation}) {
     const {langName} = route.params;
 
+    const [searchQuery, setSearchQuery] = React.useState('');
+    const [songs, setSongs] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useFocusEffect(
+        useCallback(() => {
+            setLoading(true);
+            fetchSongsFromCloud();
+        }, [])
+    );
+
+    const fetchSongsFromCloud = async () => {
+        const { data, error } = await supabase
+        .from('songs')
+        .select('*')
+        .eq('language', langName);
+        if (error) {
+            console.error('Error fetching from cloud:', error);
+        } else {
+            setSongs(data);
+        }
+        setLoading(false);
+    };
+
+    const filteredSongs = songs.filter((song) => {
+        return song.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            song.artist.toLowerCase().includes(searchQuery.toLowerCase());
+    });
+
     const renderSong=({item}) => (
-        <TouchableOpacity style={styles.songCard}>
+        <TouchableOpacity style={styles.songCard}
+        onPress={() => navigation.navigate('Lyrics', { songTitle: item.title, artist: item.artist, lyrics: item.lyrics })}>
             <Text style={styles.songTitle}>{item.title}</Text>
             <Text style={styles.songArtist}>{item.artist}</Text>
         </TouchableOpacity>
     );
+
     return (
         <View style={styles.container}>
-            <View style={styles.header}></View>
-                        <Text style={styles.headerText}>{langName} Songs</Text>
+            <View style={styles.header}>
+                <Text style={styles.headerText}>{langName} Songs</Text>
+                </View>
+
+                <View style={styles.searchContainer}>
+                    <TextInput
+                    style={styles.searchInput}
+                    placeholder="Search songs or artists..."
+                        value={searchQuery}
+                        onChangeText={(text) => setSearchQuery(text)}
+                        />
+                        </View>
+
+                        {loading ? (
+                        <ActivityIndicator size="large" color="#166534" style={{ marginTop: 40 }} />
+                        ) : (
             <FlatList
-            data={dummySongs}
-            keyExtractor={(item) => item.id}
+            data={filteredSongs}
+            keyExtractor={(item) => item.id.toString()}
             renderItem={renderSong}
             contentContainerStyle={styles.listContainer}
             />
+                        )}
         </View>
     );
 }
@@ -46,6 +88,19 @@ const styles = StyleSheet.create({
         fontSize: 24,
         fontWeight: 'bold',
         color: '#166534',
+    },
+    searchContainer: {
+        paddingHorizontal: 20,
+        paddingTop: 15,
+    },
+    searchInput: {
+        backgroundColor: '#ffffff',
+        padding: 12,
+        borderRadius: 8,
+        fontSize: 16,
+        borderWidth: 1,
+        borderColor: '#D1D5DB',
+        color: '#1F2937',
     },
     listContainer: {
         padding: 20,
