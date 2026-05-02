@@ -1,6 +1,6 @@
-import{StatusBar} from  'expo-status-bar';
-import{StyleSheet, Text, View, TouchableOpacity} from 'react-native';
-import {Ionicons, MaterialCommunityIcons} from '@expo/vector-icons';
+import { StatusBar } from 'expo-status-bar';
+import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function HomeScreen({navigation}) {
     return (

@@ -14,7 +14,7 @@ export default function App() {
           <Stack.Navigator initialRouteName="Home">
             <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
             <Stack.Screen name="Language" component={LanguageScreen} options={({ route }) => ({ title: route.params.langName })} />
-            <Stack.Screen name="Lyrics" component={LyricScreen} options={({ route }) => ({ title: route.params.songTitle })} />
+            <Stack.Screen name="Lyrics" component={LyricScreen} options={{headerShown: false}} />
             <Stack.Screen name="Upload" component={UploadScreen} options={{ title: 'Add a New Song' }} />
             <Stack.Screen name="Auth" component={AuthScreen} options={{ title: 'Login' }} />  
 

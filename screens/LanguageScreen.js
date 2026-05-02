@@ -4,8 +4,9 @@ import { supabase } from './supabase';
 import { useFocusEffect } from '@react-navigation/native';
 
 export default function LanguageScreen({route, navigation}) {
+    console.log("THE DATA ARRIVING AT LYRICS SCREEN:", route.params); // Debugging line to check incoming params
+    const [isTransliterated, setIsTransliterated] = useState(false);
     const {langName} = route.params;
-
     const [searchQuery, setSearchQuery] = React.useState('');
     const [songs, setSongs] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -30,18 +31,22 @@ export default function LanguageScreen({route, navigation}) {
         setLoading(false);
     };
 
-    const filteredSongs = songs.filter((song) => {
-        return song.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            song.artist.toLowerCase().includes(searchQuery.toLowerCase());
+    const filteredSongs = (songs || []).filter((song) => {
+        if (!song) return false;
+        const title = (song.title || '').toLowerCase();
+        const artist = (song.artist || '').toLowerCase();
+        const query = (searchQuery || '').toLowerCase();
+        return title.includes(query) || artist.includes(query);
     });
 
     const renderSong=({item}) => (
-        <TouchableOpacity style={styles.songCard}
-        onPress={() => navigation.navigate('Lyrics', { songTitle: item.title, artist: item.artist, lyrics: item.lyrics })}>
-            <Text style={styles.songTitle}>{item.title}</Text>
-            <Text style={styles.songArtist}>{item.artist}</Text>
-        </TouchableOpacity>
-    );
+    <TouchableOpacity style={styles.songCard}
+    // THIS LINE IS THE CRITICAL ONE:
+    onPress={() => navigation.navigate('Lyrics', { song: item })}>
+        <Text style={styles.songTitle}>{item.title}</Text>
+        <Text style={styles.songArtist}>{item.artist}</Text>
+    </TouchableOpacity>
+);
 
     return (
         <View style={styles.container}>
@@ -63,7 +68,7 @@ export default function LanguageScreen({route, navigation}) {
                         ) : (
             <FlatList
             data={filteredSongs}
-            keyExtractor={(item) => item.id.toString()}
+            keyExtractor={(item) => item?.id?.toString() || Math.random().toString()}
             renderItem={renderSong}
             contentContainerStyle={styles.listContainer}
             />
