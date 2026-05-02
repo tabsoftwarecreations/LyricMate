@@ -39,7 +39,7 @@ export default function HomeScreen({navigation}) {
                     <StatusBar style="auto" />
                     <TouchableOpacity
                     style={Styles.uploadButton}
-                    onPress={() => navigation.navigate('Upload')}>
+                    onPress={() => navigation.navigate('Auth')}>
                         <Ionicons name="add-circle" size={20} color="#ffffff" style={{ marginRight: 8 }} />
                     <Text style={Styles.uploadButtonText}>Add a New Song</Text>
                     </TouchableOpacity>
