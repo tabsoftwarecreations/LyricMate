@@ -1,13 +1,17 @@
 import React, { useState, useCallback } from 'react';
-import {StyleSheet, Text, View, FlatList, TouchableOpacity, TextInput, ActivityIndicator} from 'react-native';
+import { StyleSheet, Text, View, FlatList, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
 import { supabase } from './supabase';
 import { useFocusEffect } from '@react-navigation/native';
+import { StatusBar } from 'expo-status-bar';
 
-export default function LanguageScreen({route, navigation}) {
-    console.log("THE DATA ARRIVING AT LYRICS SCREEN:", route.params); // Debugging line to check incoming params
-    const [isTransliterated, setIsTransliterated] = useState(false);
-    const {langName} = route.params;
-    const [searchQuery, setSearchQuery] = React.useState('');
+export default function LanguageScreen({ route, navigation }) {
+    // 1. Grab the correct category from the route
+    const { categoryName } = route.params;
+    
+    // Debugging line (Fixed the text to say Language Screen!)
+    console.log("📍 THE DATA ARRIVING AT LANGUAGE SCREEN:", categoryName); 
+
+    const [searchQuery, setSearchQuery] = useState('');
     const [songs, setSongs] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -15,16 +19,18 @@ export default function LanguageScreen({route, navigation}) {
         useCallback(() => {
             setLoading(true);
             fetchSongsFromCloud();
-        }, [])
+        }, [categoryName])
     );
 
     const fetchSongsFromCloud = async () => {
+        // 2. THE CRITICAL FIX: Asking Supabase for the 'category' column, NOT 'language'
         const { data, error } = await supabase
-        .from('songs')
-        .select('*')
-        .eq('language', langName);
+            .from('songs')
+            .select('*')
+            .eq('category', categoryName); 
+            
         if (error) {
-            console.error('Error fetching from cloud:', error);
+            console.error('🚨 Error fetching from cloud:', error);
         } else {
             setSongs(data);
         }
@@ -39,40 +45,47 @@ export default function LanguageScreen({route, navigation}) {
         return title.includes(query) || artist.includes(query);
     });
 
-    const renderSong=({item}) => (
-    <TouchableOpacity style={styles.songCard}
-    // THIS LINE IS THE CRITICAL ONE:
-    onPress={() => navigation.navigate('Lyrics', { song: item })}>
-        <Text style={styles.songTitle}>{item.title}</Text>
-        <Text style={styles.songArtist}>{item.artist}</Text>
-    </TouchableOpacity>
-);
+    const renderSong = ({ item }) => (
+        <TouchableOpacity 
+            style={styles.songCard}
+            onPress={() => navigation.navigate('Lyrics', { song: item })}
+        >
+            <Text style={styles.songTitle}>{item.title}</Text>
+            <Text style={styles.songArtist}>{item.artist}</Text>
+        </TouchableOpacity>
+    );
 
     return (
         <View style={styles.container}>
+            <StatusBar style="dark" />
             <View style={styles.header}>
-                <Text style={styles.headerText}>{langName} Songs</Text>
-                </View>
+                {/* 3. Make sure the header displays the right variable */}
+                <Text style={styles.headerText}>{categoryName} Songs</Text>
+            </View>
 
-                <View style={styles.searchContainer}>
-                    <TextInput
+            <View style={styles.searchContainer}>
+                <TextInput
                     style={styles.searchInput}
-                    placeholder="Search songs or artists..."
-                        value={searchQuery}
-                        onChangeText={(text) => setSearchQuery(text)}
-                        />
-                        </View>
+                    placeholder={`Search ${categoryName} songs...`}
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                />
+            </View>
 
-                        {loading ? (
-                        <ActivityIndicator size="large" color="#166534" style={{ marginTop: 40 }} />
-                        ) : (
-            <FlatList
-            data={filteredSongs}
-            keyExtractor={(item) => item?.id?.toString() || Math.random().toString()}
-            renderItem={renderSong}
-            contentContainerStyle={styles.listContainer}
-            />
-                        )}
+            {loading ? (
+                <ActivityIndicator size="large" color="#166534" style={{ marginTop: 40 }} />
+            ) : (
+                <FlatList
+                    data={filteredSongs}
+                    keyExtractor={(item) => item?.id?.toString() || Math.random().toString()}
+                    renderItem={renderSong}
+                    contentContainerStyle={styles.listContainer}
+                    showsVerticalScrollIndicator={false}
+                    ListEmptyComponent={
+                        <Text style={styles.emptyText}>No songs found in this category yet.</Text>
+                    }
+                />
+            )}
         </View>
     );
 }
@@ -84,7 +97,7 @@ const styles = StyleSheet.create({
     },
     header: {
         padding: 20,
-        paddingTop: 40,
+        paddingTop: 50,
         backgroundColor: '#ffffff',
         borderBottomWidth: 1,
         borderBottomColor: '#E5E7EB',
@@ -109,6 +122,7 @@ const styles = StyleSheet.create({
     },
     listContainer: {
         padding: 20,
+        paddingBottom: 100, // Keeps the bottom tab from covering the last item
     },
     songCard: {
         backgroundColor: '#ffffff',
@@ -131,4 +145,10 @@ const styles = StyleSheet.create({
         color: '#6B7280',
         marginTop: 4,
     },
+    emptyText: {
+        textAlign: 'center',
+        marginTop: 40,
+        fontSize: 16,
+        color: '#6B7280',
+    }
 });

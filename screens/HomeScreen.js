@@ -1,116 +1,201 @@
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { StyleSheet, Text, View, FlatList, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { supabase } from './supabase';
+import { useFocusEffect } from '@react-navigation/native';
+import { StatusBar } from 'expo-status-bar';
 
-export default function HomeScreen({navigation}) {
-    return (
-        <View style={Styles.container}>
-            <View style={Styles.titleRow}>
-                <Ionicons name="book" size={36} color="#166534" />
-                <Text style={Styles.title}>LyricMate</Text>
+export default function HomeScreen({ navigation }) {
+    const [searchQuery, setSearchQuery] = useState('');
+    const [songs, setSongs] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    // Refresh the list every time the user navigates back to this tab
+    useFocusEffect(
+        useCallback(() => {
+            setLoading(true);
+            fetchAllSongs();
+        }, [])
+    );
+
+    const fetchAllSongs = async () => {
+        // Fetch all songs and order them alphabetically by title!
+        const { data, error } = await supabase
+            .from('songs')
+            .select('*')
+            .order('title', { ascending: true });
+
+        if (error) {
+            console.error('Error fetching songs:', error);
+        } else {
+            setSongs(data);
+        }
+        setLoading(false);
+    };
+
+    // Make the search bar work for both titles and artists
+    const filteredSongs = songs.filter((song) => {
+        return song.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+               song.artist.toLowerCase().includes(searchQuery.toLowerCase());
+    });
+
+    const renderSong = ({ item }) => (
+        <TouchableOpacity 
+            style={styles.songCard}
+            // Passing the full "item" suitcase so the LyricScreen gets the AI transliterations!
+            onPress={() => navigation.navigate('Lyrics', { song: item })}
+        >
+            <View style={styles.cardHeader}>
+                <Text style={styles.songTitle} numberOfLines={1}>{item.title}</Text>
+                {/* A tiny badge to show what the original language was */}
+                <View style={styles.languageBadge}>
+                    <Text style={styles.badgeText}>{item.category}</Text>
+                </View>
             </View>
-            <Text style={Styles.subtitle}>Islamic Songs Collection</Text>
-            <View style={Styles.cardContainer}>
-                <TouchableOpacity
-                style={Styles.card}
-                onPress={() => navigation.navigate('Language', { langName: "English" })}>
-                    <Text style={Styles.cardText}>English</Text>
-                    </TouchableOpacity>
+            <Text style={styles.songArtist} numberOfLines={1}>{item.artist}</Text>
+        </TouchableOpacity>
+    );
 
-                <TouchableOpacity
-                style={Styles.card}
-                onPress={() => navigation.navigate('Language', { langName: "Malayalam" })}>
-                    <Text style={Styles.cardText}>Malayalam</Text>
-                    </TouchableOpacity>
+    return (
+        <View style={styles.container}>
+            <StatusBar style="dark" />
+            
+            {/* The Top Brand Header */}
+            <View style={styles.header}>
+                <View style={styles.titleRow}>
+                    <Ionicons name="book" size={32} color="#166534" />
+                    <Text style={styles.headerTitle}>LyricMate</Text>
+                </View>
+                <Text style={styles.headerSubtitle}>Master Song Collection</Text>
+            </View>
 
-                    <TouchableOpacity
-                style={Styles.card}
-                onPress={() => navigation.navigate('Language', { langName: "Urdu" })}>
-                    <Text style={Styles.cardText}>Urdu</Text>
-                    </TouchableOpacity>
-                    
-                    <TouchableOpacity
-                    style={Styles.card}
-                    onPress={() => navigation.navigate('Language', { langName: 'Kannada' })}>
-                    <Text style={Styles.cardText}>Kannada</Text>
-                    </TouchableOpacity>
-                    </View>
+            {/* The Search Bar */}
+            <View style={styles.searchContainer}>
+                <Ionicons name="search" size={20} color="#6B7280" style={styles.searchIcon} />
+                <TextInput
+                    style={styles.searchInput}
+                    placeholder="Search any song or artist..."
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                />
+            </View>
 
-                    <StatusBar style="auto" />
-                    <TouchableOpacity
-                    style={Styles.uploadButton}
-                    onPress={() => navigation.navigate('Auth')}>
-                        <Ionicons name="add-circle" size={20} color="#ffffff" style={{ marginRight: 8 }} />
-                    <Text style={Styles.uploadButtonText}>Add a New Song</Text>
-                    </TouchableOpacity>
-                    </View>
-                    );
-                }
+            {/* The Master Alphabetical List */}
+            {loading ? (
+                <ActivityIndicator size="large" color="#166534" style={{ marginTop: 40 }} />
+            ) : (
+                <FlatList
+                    data={filteredSongs}
+                    keyExtractor={(item) => item.id.toString()}
+                    renderItem={renderSong}
+                    contentContainerStyle={styles.listContainer}
+                    showsVerticalScrollIndicator={false}
+                    // If the database is empty, show a nice message
+                    ListEmptyComponent={
+                        <Text style={styles.emptyText}>No songs found. Head to the Upload tab to add some!</Text>
+                    }
+                />
+            )}
+        </View>
+    );
+}
 
-const Styles = StyleSheet.create({
+const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#F0FDF4',
-        alignItems: 'center',
-        justifyContent: 'center',
+    },
+    header: {
+        paddingTop: 50, // Space for the status bar
+        paddingHorizontal: 20,
+        paddingBottom: 20,
+        backgroundColor: '#FFFFFF',
+        borderBottomWidth: 1,
+        borderBottomColor: '#E5E7EB',
     },
     titleRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 8,
     },
-    title: {
-        fontSize: 36,
+    headerTitle: {
+        fontSize: 28,
         fontWeight: 'bold',
         color: '#166534',
+        marginLeft: 10,
     },
-    subtitle: {
-        fontSize: 18,
-        color: '#4B5563',
-        marginTop: 8,
-    },
-    cardContainer: {
-        marginTop: 40,
-        width: '100%',
-        paddingHorizontal: 20,
-    },
-    card: {
-        backgroundColor: '#ffffff',
-        paddingVertical: 20,
-        paddingHorizontal: 20,
-        borderRadius: 12,
-        marginBottom: 15,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 3,
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    cardText: {
-        fontSize: 20,
-        fontWeight: '600',
-        color: '#1F2937',
-        marginLeft: 15,
-    },
-    uploadButton: {
-        marginTop: 30,
-        backgroundColor: '#166534',
-        paddingVertical: 15,
-        paddingHorizontal: 30,
-        borderRadius: 25,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 3,
-        elevation: 4,
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    uploadButtonText: {
+    headerSubtitle: {
         fontSize: 16,
+        color: '#6B7280',
+        marginTop: 4,
+    },
+    searchContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FFFFFF',
+        marginHorizontal: 20,
+        marginTop: 15,
+        marginBottom: 5,
+        paddingHorizontal: 12,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: '#D1D5DB',
+    },
+    searchIcon: {
+        marginRight: 8,
+    },
+    searchInput: {
+        flex: 1,
+        paddingVertical: 12,
+        fontSize: 16,
+        color: '#1F2937',
+    },
+    listContainer: {
+        padding: 20,
+        paddingBottom: 100, // Extra padding so the bottom tab doesn't cover the last song
+    },
+    songCard: {
+        backgroundColor: '#FFFFFF',
+        padding: 16,
+        borderRadius: 12,
+        marginBottom: 12,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 3,
+        elevation: 2,
+    },
+    cardHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    songTitle: {
+        fontSize: 18,
         fontWeight: 'bold',
-        color: '#ffffff',
+        color: '#1F2937',
+        flex: 1, 
+        marginRight: 10,
+    },
+    languageBadge: {
+        backgroundColor: '#DCFCE7',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 12,
+    },
+    badgeText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: '#166534',
+    },
+    songArtist: {
+        fontSize: 14,
+        color: '#6B7280',
+        marginTop: 6,
+    },
+    emptyText: {
+        textAlign: 'center',
+        marginTop: 40,
+        fontSize: 16,
+        color: '#6B7280',
     }
 });

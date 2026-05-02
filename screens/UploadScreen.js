@@ -123,13 +123,15 @@ export default function UploadScreen({ navigation }) {
             <Text style={styles.label}>Artist Name</Text>
             <TextInput style={styles.input} placeholder="Enter the artist" value={artist} onChangeText={setArtist} />
             
-            <Text style={styles.label}>Original Language</Text>
+            <Text style={styles.label}>Category</Text>
             <View style={styles.pickerContainer}>
-                <Picker selectedValue={language} onValueChange={(itemValue) => setLanguage(itemValue)} style={styles.picker}>
-                    <Picker.Item label="English/Manglish" value="English" />
+                <Picker selectedValue={category} onValueChange={(itemValue) => setCategory(itemValue)} style={styles.picker}>
                     <Picker.Item label="Malayalam" value="Malayalam" />
-                    <Picker.Item label="Urdu" value="Urdu" />
+                    <Picker.Item label="English/Manglish" value="English" />
                     <Picker.Item label="Kannada" value="Kannada" />
+                    <Picker.Item label="Urdu" value="Urdu" />
+                    <Picker.Item label="Mappila Patt" value="Mappila Patt" />
+                    <Picker.Item label="Mashup" value="Mashup" />
                 </Picker>
             </View>
           
