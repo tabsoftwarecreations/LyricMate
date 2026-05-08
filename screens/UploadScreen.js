@@ -1,170 +1,235 @@
-import React, { useState } from "react";
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from "react-native";
-import { supabase } from "./supabase";
-import { Picker } from "@react-native-picker/picker";
+import React, { useState, useCallback } from 'react';
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, ScrollView, ActivityIndicator } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
+import { supabase } from './supabase';
+import { StatusBar } from 'expo-status-bar';
+import { useTheme } from '../context/ThemeContext';
+import { useFocusEffect } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function UploadScreen({ navigation }) {
+    const { colors, theme } = useTheme();
     const [title, setTitle] = useState('');
     const [artist, setArtist] = useState('');
-    const [language, setLanguage] = useState('English');
     const [lyrics, setLyrics] = useState('');
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [errorMsg, setErrorMsg] = useState(null);
+    const [category, setCategory] = useState('Malayalam');
+    const [loading, setLoading] = useState(false);
+    const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-    // --- THE AI TRANSLITERATION ENGINE ---
-    const generateTransliterations = async (inputLyrics) => {
+    // ==========================================
+    // THE UPLOAD GATEKEEPER
+    // ==========================================
+    useFocusEffect(
+        useCallback(() => {
+            checkAuth();
+        }, [])
+    );
+
+    const checkAuth = async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+            setIsAuthenticated(false);
+            // Bounce to Home, then open Auth to prevent infinite loops
+            navigation.navigate('Home');
+            navigation.navigate('Auth');
+        } else {
+            setIsAuthenticated(true);
+        }
+    };
+
+    const generateTransliteration = async (lyrics, lang) => {
+        const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
+        console.log("🔑 Using API Key (first 5):", GEMINI_API_KEY?.substring(0, 5));
+
+        const prompt = `Transliterate the following ${lang} lyrics into English phonetics. Return ONLY the transliterated text without any conversational filler or extra notes:\n\n${lyrics}`;
+
         try {
-            setErrorMsg(null);
-            const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
-
-            if (!apiKey) {
-                const msg = "Gemini API Key missing in .env";
-                setErrorMsg(msg);
-                return null;
-            }
-
-            const promptText = `
-                ACT AS A PROFESSIONAL MUSIC TRANSLITERATOR.
-                Transliterate/translate these lyrics into exactly 4 scripts.
-                Return ONLY a JSON object with keys: "english", "malayalam", "kannada", "urdu".
-                
-                Lyrics:
-                ${inputLyrics}
-            `;
-
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+            console.log("📡 Sending request to Gemini...");
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    contents: [{ parts: [{ text: promptText }] }]
+                    contents: [{ parts: [{ text: prompt }] }]
                 })
             });
 
-            const data = await response.json();
-
             if (!response.ok) {
-                console.error("AI API Error:", data);
-                setErrorMsg(data.error?.message || "AI processing failed.");
+                const errorData = await response.json();
+                console.error("❌ Gemini API Error Status:", response.status, errorData);
                 return null;
             }
 
-            const jsonString = data.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (!jsonString) {
-                setErrorMsg("AI returned no content.");
-                return null;
-            }
+            const data = await response.json();
+            console.log("📦 Gemini Response Received:", JSON.stringify(data).substring(0, 200));
 
-            const cleaned = jsonString.replace(/```json|```/g, "").trim();
-            return JSON.parse(cleaned); 
-            
+            if (data.candidates && data.candidates[0].content && data.candidates[0].content.parts[0].text) {
+                const result = data.candidates[0].content.parts[0].text.trim();
+                console.log("✅ Transliteration successful (length):", result.length);
+                return result;
+            }
+            console.error("❌ Gemini response missing content:", data);
+            return null;
         } catch (error) {
-            console.error("AI Crash:", error);
-            setErrorMsg(`Connection Error: ${error.message}`);
+            console.error("❌ Gemini Error:", error);
             return null;
         }
     };
 
-    // --- THE UPLOAD HANDLER ---
     const handleUpload = async () => {
-        if (isSubmitting) return;
+        if (!title || !artist || !lyrics) {
+            Alert.alert('Missing Fields', 'Please fill in all fields.');
+            return;
+        }
+
+        setLoading(true);
+        const { data: { user } } = await supabase.auth.getUser();
+
+        if (!user) {
+            setLoading(false);
+            navigation.navigate('Profile');
+            return;
+        }
 
         try {
-            if (!title.trim() || !artist.trim() || !lyrics.trim()) {
-                Alert.alert('Hold Up!', 'Please fill out all fields.');
-                return;
-            }
+            console.log("🤖 Generating AI Transliteration...");
+            const transliterations = await generateTransliteration(lyrics, category);
 
-            setIsSubmitting(true);
-            const transliterationPack = await generateTransliterations(lyrics);
-
-            if (!transliterationPack) {
-                setIsSubmitting(false);
-                return; 
-            }
-
+            console.log("💾 Saving to database...");
             const { error: dbError } = await supabase
                 .from('songs')
                 .insert([{
-                    title: title.trim(), 
-                    artist: artist.trim(), 
-                    language: language, 
-                    lyrics: lyrics.trim(), 
-                    transliterations: transliterationPack 
+                    title,
+                    artist,
+                    lyrics,
+                    category,
+                    status: 'pending',
+                    user_id: user.id,
+                    transliterations
                 }]);
 
-            setIsSubmitting(false);
+            if (dbError) throw dbError;
 
-            if (dbError) {
-                console.error("Supabase Error:", dbError);
-                setErrorMsg(`Database Error: ${dbError.message}`);
-            } else {
-                Alert.alert('Success', 'Song uploaded successfully!');
-                navigation.goBack();
-            }
-        } catch (globalError) {
-            console.error("Global Handler Error:", globalError);
-            setIsSubmitting(false);
-            setErrorMsg(`Unexpected Error: ${globalError.message}`);
+            Alert.alert(
+                'Submitted! ⏳',
+                'Your lyrics have been sent for Admin approval.',
+                [{
+                    text: "Awesome!", onPress: () => {
+                        setTitle(''); setArtist(''); setLyrics('');
+                        navigation.navigate('Home');
+                    }
+                }]
+            );
+
+        } catch (error) {
+            console.error("Upload Error:", error);
+            Alert.alert('Upload Failed', 'Something went wrong while saving your contribution.');
+        } finally {
+            setLoading(false);
         }
     };
 
-    // --- THE UI ---
-    return (
-        <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-            {errorMsg && (
-                <View style={styles.errorBanner}>
-                    <Text style={styles.errorText}>{errorMsg}</Text>
-                </View>
-            )}
+    // --- FALLBACK UI ---
+    if (!isAuthenticated) {
+        return (
+            <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
+                <Ionicons name="lock-closed" size={64} color={colors.primary} />
+                <Text style={{ color: colors.text, marginTop: 20, fontSize: 18, marginBottom: 20 }}>Please log in to continue</Text>
 
-            <Text style={styles.label}>Song Title</Text>
-            <TextInput style={styles.input} placeholder="Enter the title" value={title} onChangeText={setTitle} />
-            
-            <Text style={styles.label}>Artist Name</Text>
-            <TextInput style={styles.input} placeholder="Enter the artist" value={artist} onChangeText={setArtist} />
-            
-            <Text style={styles.label}>Category</Text>
-            <View style={styles.pickerContainer}>
-                <Picker selectedValue={category} onValueChange={(itemValue) => setCategory(itemValue)} style={styles.picker}>
-                    <Picker.Item label="Malayalam" value="Malayalam" />
-                    <Picker.Item label="English/Manglish" value="English" />
-                    <Picker.Item label="Kannada" value="Kannada" />
-                    <Picker.Item label="Urdu" value="Urdu" />
-                    <Picker.Item label="Mappila Patt" value="Mappila Patt" />
-                    <Picker.Item label="Mashup" value="Mashup" />
-                </Picker>
+                <TouchableOpacity
+                    style={{ backgroundColor: colors.primary, paddingVertical: 12, paddingHorizontal: 24, borderRadius: 12 }}
+                    onPress={() => navigation.navigate('Auth')}
+                >
+                    <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: 'bold' }}>Go to Login</Text>
+                </TouchableOpacity>
             </View>
-          
-            <Text style={styles.label}>Lyrics</Text>
-            <TextInput
-                style={[styles.input, styles.lyricsInput]}
-                placeholder="Paste lyrics here..."
-                value={lyrics}
-                onChangeText={setLyrics}
-                multiline
-            />
-            
-            <TouchableOpacity style={styles.submitButton} onPress={handleUpload} disabled={isSubmitting}>
-                {isSubmitting ? (
-                    <ActivityIndicator color="#ffffff" />
-                ) : (
-                    <Text style={styles.submitText}>Process & Upload</Text>
-                )}
-            </TouchableOpacity>
+        );
+    }
+
+    // --- MAIN RENDER ---
+    return (
+        <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
+            <StatusBar style={theme === 'dark' ? "light" : "dark"} />
+            <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+                <Text style={[styles.headerTitle, { color: colors.primary }]}>Upload Lyrics</Text>
+                <Text style={[styles.headerSubtitle, { color: colors.secondaryText }]}>Contribute to the master collection</Text>
+            </View>
+
+            <View style={styles.formContainer}>
+                <Text style={[styles.label, { color: colors.text }]}>Song Title</Text>
+                <TextInput
+                    style={[styles.input, { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]}
+                    placeholder="e.g. Kun Anta"
+                    placeholderTextColor={colors.secondaryText}
+                    value={title}
+                    onChangeText={setTitle}
+                />
+
+                <Text style={[styles.label, { color: colors.text }]}>Artist / Singer</Text>
+                <TextInput
+                    style={[styles.input, { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]}
+                    placeholder="e.g. Humood AlKhudher"
+                    placeholderTextColor={colors.secondaryText}
+                    value={artist}
+                    onChangeText={setArtist}
+                />
+
+                <Text style={[styles.label, { color: colors.text }]}>Category</Text>
+                <View style={[styles.pickerContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                    <Picker
+                        selectedValue={category}
+                        onValueChange={(itemValue) => setCategory(itemValue)}
+                        style={[styles.picker, { color: colors.text }]}
+                        dropdownIconColor={colors.primary}
+                    >
+                        <Picker.Item label="Malayalam" value="Malayalam" />
+                        <Picker.Item label="English" value="English" />
+                        <Picker.Item label="Kannada" value="Kannada" />
+                        <Picker.Item label="Urdu" value="Urdu" />
+                        <Picker.Item label="Mappila Patt" value="Mappila Patt" />
+                        <Picker.Item label="Mashup" value="Mashup" />
+                    </Picker>
+                </View>
+
+                <Text style={[styles.label, { color: colors.text }]}>Lyrics</Text>
+                <TextInput
+                    style={[styles.input, styles.textArea, { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]}
+                    placeholder="Paste the full lyrics here..."
+                    placeholderTextColor={colors.secondaryText}
+                    value={lyrics}
+                    onChangeText={setLyrics}
+                    multiline
+                    numberOfLines={10}
+                    textAlignVertical="top"
+                />
+
+                <TouchableOpacity
+                    style={[styles.submitButton, { backgroundColor: colors.primary }]}
+                    onPress={handleUpload}
+                    disabled={loading}
+                >
+                    {loading ? (
+                        <ActivityIndicator color="#ffffff" />
+                    ) : (
+                        <Text style={styles.submitButtonText}>Submit for Approval</Text>
+                    )}
+                </TouchableOpacity>
+            </View>
         </ScrollView>
     );
 }
 
+// Ensure styles are OUTSIDE the main function!
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#F0FDF4' },
-    scrollContent: { padding: 24, paddingBottom: 50 },
-    errorBanner: { backgroundColor: '#FEE2E2', padding: 12, borderRadius: 8, marginBottom: 15, borderWidth: 1, borderColor: '#EF4444' },
-    errorText: { color: '#B91C1C', fontSize: 14, textAlign: 'center', fontWeight: '500' },
-    label: { fontSize: 16, fontWeight: '600', marginBottom: 8, color: '#166534', marginTop: 15 },
-    input: { borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, padding: 12, fontSize: 16, backgroundColor: '#FFFFFF', color: '#1F2937' },
-    pickerContainer: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, overflow: 'hidden' },
-    picker: { height: 50, width: '100%' },
-    lyricsInput: { height: 150, textAlignVertical: 'top' },
-    submitButton: { backgroundColor: '#166534', padding: 16, marginTop: 30, borderRadius: 8, alignItems: 'center' },
-    submitText: { color: '#ffffff', fontSize: 18, fontWeight: 'bold' },
+    container: { flex: 1 },
+    header: { paddingTop: 60, paddingHorizontal: 20, paddingBottom: 20, borderBottomWidth: 1 },
+    headerTitle: { fontSize: 28, fontWeight: 'bold' },
+    headerSubtitle: { fontSize: 16, marginTop: 4 },
+    formContainer: { padding: 20, paddingBottom: 100 },
+    label: { fontSize: 16, fontWeight: '600', marginBottom: 8, marginTop: 15 },
+    input: { borderWidth: 1, borderRadius: 12, padding: 15, fontSize: 16 },
+    pickerContainer: { borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
+    picker: { height: 55, width: '100%' },
+    textArea: { minHeight: 200 },
+    submitButton: { paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginTop: 30, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 3, elevation: 3 },
+    submitButtonText: { color: '#FFFFFF', fontSize: 18, fontWeight: 'bold' }
 });

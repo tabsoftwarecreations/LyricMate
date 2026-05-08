@@ -2,8 +2,8 @@ import React from 'react';
 import { StyleSheet, Text, View, FlatList, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
+import { useTheme } from '../context/ThemeContext';
 
-// Our master list of categories and their icons
 const CATEGORIES = [
     { id: '1', name: 'Malayalam', icon: 'leaf' },
     { id: '2', name: 'English', icon: 'earth' },
@@ -14,32 +14,32 @@ const CATEGORIES = [
 ];
 
 export default function CategoriesScreen({ navigation }) {
+    const { colors, theme } = useTheme();
     
     const renderCategory = ({ item }) => (
         <TouchableOpacity 
-            style={styles.card}
-            // Notice we are passing categoryName instead of langName now!
+            style={[styles.card, { backgroundColor: colors.card }]}
             onPress={() => navigation.navigate('Language', { categoryName: item.name })}
         >
-            <View style={styles.iconContainer}>
-                <Ionicons name={item.icon} size={32} color="#166534" />
+            <View style={[styles.iconContainer, { backgroundColor: theme === 'dark' ? '#065F46' : '#DCFCE7' }]}>
+                <Ionicons name={item.icon} size={32} color={colors.primary} />
             </View>
-            <Text style={styles.cardText}>{item.name}</Text>
+            <Text style={[styles.cardText, { color: colors.text }]}>{item.name}</Text>
         </TouchableOpacity>
     );
 
     return (
-        <View style={styles.container}>
-            <StatusBar style="dark" />
-            <View style={styles.header}>
-                <Text style={styles.headerTitle}>Browse Categories</Text>
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
+            <StatusBar style={theme === 'dark' ? "light" : "dark"} />
+            <View style={[styles.header, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
+                <Text style={[styles.headerTitle, { color: colors.primary }]}>Browse Categories</Text>
             </View>
 
             <FlatList
                 data={CATEGORIES}
                 keyExtractor={(item) => item.id}
                 renderItem={renderCategory}
-                numColumns={2} // Creates the beautiful 2-column grid
+                numColumns={2}
                 contentContainerStyle={styles.gridContainer}
                 showsVerticalScrollIndicator={false}
             />
@@ -50,20 +50,16 @@ export default function CategoriesScreen({ navigation }) {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F0FDF4',
     },
     header: {
         paddingTop: 50,
         paddingHorizontal: 20,
         paddingBottom: 15,
-        backgroundColor: '#FFFFFF',
         borderBottomWidth: 1,
-        borderBottomColor: '#E5E7EB',
     },
     headerTitle: {
         fontSize: 24,
         fontWeight: 'bold',
-        color: '#166534',
     },
     gridContainer: {
         padding: 15,
@@ -71,20 +67,18 @@ const styles = StyleSheet.create({
     },
     card: {
         flex: 1,
-        backgroundColor: '#FFFFFF',
         margin: 8,
         paddingVertical: 30,
-        borderRadius: 16,
+        borderRadius: 20,
         alignItems: 'center',
         justifyContent: 'center',
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
+        shadowOpacity: 0.1,
         shadowRadius: 4,
-        elevation: 2,
+        elevation: 3,
     },
     iconContainer: {
-        backgroundColor: '#DCFCE7',
         padding: 15,
         borderRadius: 50,
         marginBottom: 12,
@@ -92,6 +86,5 @@ const styles = StyleSheet.create({
     cardText: {
         fontSize: 16,
         fontWeight: 'bold',
-        color: '#1F2937',
     }
 });

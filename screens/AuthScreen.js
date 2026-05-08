@@ -1,144 +1,213 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import {
+    StyleSheet,
+    Text,
+    View,
+    TextInput,
+    TouchableOpacity,
+    Alert,
+    ActivityIndicator,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView
+} from 'react-native';
 import { supabase } from './supabase';
 import { Ionicons } from '@expo/vector-icons';
+import { StatusBar } from 'expo-status-bar';
+import { useTheme } from '../context/ThemeContext';
 
 export default function AuthScreen({ navigation }) {
+    const { colors, theme } = useTheme();
     const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
-    const [otpSent, setOtpSent] = useState(false);
-    const [token, setToken] = useState('');
+    const [isSignUp, setIsSignUp] = useState(false);
 
-    // Function 1: Ask Supabase to send the email
-    const sendOTP = async () => {
-        if (!email) {
-            Alert.alert('Error', 'Please enter your email address.');
+    // NEW: State to toggle password visibility
+    const [showPassword, setShowPassword] = useState(false);
+
+    const handleAuthentication = async () => {
+        if (!email || !password) {
+            Alert.alert('Hold Up!', 'Please enter both an email and a password.');
             return;
         }
-        setLoading(true);
-        const { error } = await supabase.auth.signInWithOtp({
-            email: email,
-        });
-        setLoading(false);
 
-        if (error) {
-            Alert.alert('Error', error.message);
+        setLoading(true);
+
+        if (isSignUp) {
+            const { error } = await supabase.auth.signUp({ email, password });
+            if (error) Alert.alert('Sign Up Error', error.message);
+            else {
+                Alert.alert('Welcome! 🎉', 'Your account has been created.');
+                navigation.goBack();
+            }
         } else {
-            setOtpSent(true);
-            Alert.alert('Check your inbox!', 'We sent a 6-digit code to your email.');
+            const { error } = await supabase.auth.signInWithPassword({ email, password });
+            if (error) Alert.alert('Login Error', error.message);
+            else {
+                Alert.alert('Welcome Back! 👋', 'Success.');
+                navigation.goBack();
+            }
         }
-    };
-
-    // Function 2: Verify the code the user typed in
-    const verifyOTP = async () => {
-        if (!token) {
-            Alert.alert('Error', 'Please enter the 6-digit code sent to your email.');
-            return;
-        }
-        setLoading(true);
-        const { data, error } = await supabase.auth.verifyOtp({
-            email: email,
-            token: token,
-            type: 'email',
-        });
         setLoading(false);
-
-        if (error) {
-            Alert.alert('Error', error.message);
-        } else if (data.session) {
-            // Send them to the Upload Screen once verified!
-            navigation.replace('Upload'); 
-        }
     };
 
-   return (
-        <View style={styles.container}>
-            <Ionicons name="shield-checkmark" size={60} color="#166534" style={{ marginBottom: 20 }} />
-            <Text style={styles.title}>Creator Login</Text>
-            <Text style={styles.subtitle}>Verify your email to upload new songs</Text>
+    return (
+        <KeyboardAvoidingView
+            // FIX: Only apply keyboard behavior on mobile platforms. Ignore on web.
+            behavior={Platform.OS === 'ios' ? 'padding' : Platform.OS === 'android' ? 'height' : undefined}
+            style={[styles.container, { backgroundColor: colors.background }]}
+        >
+            <StatusBar style={theme === 'dark' ? "light" : "dark"} />
 
-            {!otpSent ? (
-                <>
-                    <TextInput
-                        style={styles.input}
-                        placeholder="Enter your email"
-                        value={email}
-                        onChangeText={(text) => setEmail(text.trim())}
-                        autoCapitalize="none"
-                        keyboardType="email-address"
-                    />
-                    <TouchableOpacity style={styles.button} onPress={sendOTP} disabled={loading}>
-                        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Send Code</Text>}
-                    </TouchableOpacity>
-                    
-                    {/* Failsafe to jump to the code box */}
-                    <TouchableOpacity onPress={() => setOtpSent(true)} style={{ marginTop: 20 }}>
-                        <Text style={{ color: '#166534', fontWeight: 'bold' }}>Already have a code?</Text>
-                    </TouchableOpacity>
-                </>
-            ) : (
-                <>
-                    <TextInput
-                        style={styles.input}
-                        placeholder="Enter 6-digit code"
-                        value={token}
-                        onChangeText={setToken}
-                        keyboardType="number-pad"
-                    />
-                    <TouchableOpacity style={styles.button} onPress={verifyOTP} disabled={loading}>
-                        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Verify & Login</Text>}
+            {/* FIX: ScrollView ensures content never collapses on Web */}
+            <ScrollView
+                contentContainerStyle={styles.scrollContainer}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+            >
+                <View style={styles.headerContainer}>
+                    <Ionicons name="person-circle" size={100} color={colors.primary} />
+                    <Text style={[styles.title, { color: colors.text }]}>{isSignUp ? 'Create Account' : 'Welcome Back'}</Text>
+                    <Text style={[styles.subtitle, { color: colors.secondaryText }]}>
+                        {isSignUp ? 'Join the community.' : 'Log in to manage your favorites.'}
+                    </Text>
+                </View>
+
+                <View style={styles.formContainer}>
+                    <View style={[styles.inputContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                        <Ionicons name="mail-outline" size={20} color={colors.secondaryText} style={styles.inputIcon} />
+                        <TextInput
+                            style={[styles.input, { color: colors.text }]}
+                            placeholder="Email Address"
+                            placeholderTextColor={colors.secondaryText}
+                            value={email}
+                            onChangeText={setEmail}
+                            autoCapitalize="none"
+                            keyboardType="email-address"
+                        />
+                    </View>
+
+                    <View style={[styles.inputContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                        <Ionicons name="lock-closed-outline" size={20} color={colors.secondaryText} style={styles.inputIcon} />
+                        <TextInput
+                            style={[styles.input, { color: colors.text }]}
+                            placeholder="Password"
+                            placeholderTextColor={colors.secondaryText}
+                            value={password}
+                            onChangeText={setPassword}
+                            // NEW: Toggles based on the state
+                            secureTextEntry={!showPassword}
+                        />
+                        {/* NEW: The Eye Icon Toggle Button */}
+                        <TouchableOpacity
+                            onPress={() => setShowPassword(!showPassword)}
+                            style={styles.eyeIcon}
+                        >
+                            <Ionicons
+                                name={showPassword ? "eye-outline" : "eye-off-outline"}
+                                size={20}
+                                color={colors.secondaryText}
+                            />
+                        </TouchableOpacity>
+                    </View>
+
+                    <TouchableOpacity
+                        style={[styles.authButton, { backgroundColor: colors.primary }]}
+                        onPress={handleAuthentication}
+                        disabled={loading}
+                    >
+                        {loading ? <ActivityIndicator color="#ffffff" /> : <Text style={styles.authButtonText}>{isSignUp ? 'Sign Up' : 'Log In'}</Text>}
                     </TouchableOpacity>
 
-                    {/* Failsafe to go back to the email box */}
-                    <TouchableOpacity onPress={() => setOtpSent(false)} style={{ marginTop: 20 }}>
-                        <Text style={{ color: '#4B5563' }}>Wait, I need a new code</Text>
+                    <TouchableOpacity style={styles.toggleContainer} onPress={() => setIsSignUp(!isSignUp)}>
+                        <Text style={[styles.toggleText, { color: colors.primary }]}>
+                            {isSignUp ? "Already have an account? Log In" : "Don't have an account? Sign Up"}
+                        </Text>
                     </TouchableOpacity>
-                </>
-            )}
-        </View>
+                </View>
+            </ScrollView>
+        </KeyboardAvoidingView>
     );
 }
 
 const styles = StyleSheet.create({
     container: {
-        flex: 1,
-        backgroundColor: '#F0FDF4',
-        padding: 24,
+        flex: 1
+    },
+    scrollContainer: {
+        flexGrow: 1,
         justifyContent: 'center',
+        paddingVertical: 40,
+    },
+    headerContainer: {
         alignItems: 'center',
+        marginBottom: 40,
+        paddingHorizontal: 20
     },
     title: {
-        fontSize: 28,
+        fontSize: 32,
         fontWeight: 'bold',
-        color: '#166534',
-        marginBottom: 8,
+        marginTop: 10
     },
     subtitle: {
         fontSize: 16,
-        color: '#4B5563',
-        marginBottom: 30,
         textAlign: 'center',
+        marginTop: 8
+    },
+    formContainer: {
+        paddingHorizontal: 30
+    },
+    inputContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderRadius: 12,
+        marginBottom: 15,
+        paddingHorizontal: 15
+    },
+    inputIcon: {
+        marginRight: 10
     },
     input: {
-        width: '100%',
-        backgroundColor: '#FFFFFF',
-        borderWidth: 1,
-        borderColor: '#D1D5DB',
-        borderRadius: 8,
-        padding: 15,
-        fontSize: 16,
-        marginBottom: 20,
+        flex: 1,
+        paddingVertical: 15,
+        fontSize: 16
     },
-    button: {
-        width: '100%',
-        backgroundColor: '#166534',
-        padding: 15,
-        borderRadius: 8,
+    eyeIcon: {
+        padding: 10,
+    },
+    authButton: {
+        paddingVertical: 16,
+        borderRadius: 12,
         alignItems: 'center',
+        marginTop: 10,
+        ...Platform.select({
+            ios: {
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.1,
+                shadowRadius: 3,
+            },
+            android: {
+                elevation: 3,
+            },
+            web: {
+                boxShadow: '0px 2px 3px rgba(0,0,0,0.1)',
+            }
+        })
     },
-    buttonText: {
-        color: '#FFFFFF',
+    authButtonText: {
+        color: '#ffffff',
         fontSize: 18,
-        fontWeight: 'bold',
+        fontWeight: 'bold'
+    },
+    toggleContainer: {
+        marginTop: 25,
+        alignItems: 'center'
+    },
+    toggleText: {
+        fontSize: 16,
+        fontWeight: '600'
     }
 });
