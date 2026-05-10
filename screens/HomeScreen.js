@@ -203,7 +203,8 @@ export default function HomeScreen({ navigation }) {
                     <View style={[styles.popupBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
                         <Text style={[styles.popupTitle, { color: colors.text }]}>Sing Offline! 🎤</Text>
                         <Text style={[styles.popupText, { color: colors.secondaryText }]}>
-                            Download the native Android app for the best experience. (Note: You may need to 'Allow installation from unknown sources' in your settings).
+                            Download the native Android app for the best experience. 
+                            (Note: You may need to 'Allow installation from unknown sources' in your settings).
                         </Text>
                         
                         <TouchableOpacity style={[styles.downloadBtn, { backgroundColor: colors.primary }]} onPress={handleDownloadApp}>
