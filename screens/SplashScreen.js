@@ -42,7 +42,7 @@ export default function SplashScreen({ navigation }) {
             </Animated.View>
 
             <View style={styles.footer}>
-                <Text style={styles.footerText}>PHASE 3 ACTIVE</Text>
+                <Text style={styles.footerText}>COLLECTIONS OF ISLAMIC MADH</Text>
             </View>
         </View>
     );

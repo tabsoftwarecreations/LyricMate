@@ -1,8 +1,8 @@
-import React, { useState, useCallback } from 'react';
-import { StyleSheet, Text, View, FlatList, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
+import React, { useState, useCallback, useEffect } from 'react';
+import { StyleSheet, Text, View, FlatList, TouchableOpacity, TextInput, ActivityIndicator, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from './supabase';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect } from '@reactnavigation/native';
 import { StatusBar } from 'expo-status-bar';
 import { useTheme } from '../context/ThemeContext';
 
@@ -13,6 +13,32 @@ export default function HomeScreen({ navigation }) {
     const [favorites, setFavorites] = useState([]);
     const [loading, setLoading] = useState(true);
     const [userId, setUserId] = useState(null);
+    const [showAppPopup, setShowAppPopup] = useState(false); // <-- Web-to-App Popup State
+
+    // ==========================================
+    // WEB-TO-APP FUNNEL LOGIC
+    // ==========================================
+    useEffect(() => {
+        if (Platform.OS === 'web') {
+            const isAndroid = /android/i.test(navigator.userAgent);
+            if (isAndroid) {
+                // Trigger the popup after 2.5 seconds
+                setTimeout(() => setShowAppPopup(true), 2500);
+            }
+        }
+    }, []);
+
+    const handleDownloadApp = () => {
+        if (Platform.OS === 'web') {
+            const link = document.createElement('a');
+            link.href = '/lyricmate.apk'; 
+            link.download = 'lyricmate.apk';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+        setShowAppPopup(false);
+    };
 
     // ==========================================
     // REFRESH DATA ON EVERY SCREEN FOCUS
@@ -170,6 +196,26 @@ export default function HomeScreen({ navigation }) {
                     }
                 />
             )}
+
+            {/* --- WEB-TO-APP FUNNEL POPUP --- */}
+            {showAppPopup && (
+                <View style={styles.popupOverlay}>
+                    <View style={[styles.popupBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                        <Text style={[styles.popupTitle, { color: colors.text }]}>Sing Offline! 🎤</Text>
+                        <Text style={[styles.popupText, { color: colors.secondaryText }]}>
+                            Download the native Android app for the best experience. (Note: You may need to 'Allow installation from unknown sources' in your settings).
+                        </Text>
+                        
+                        <TouchableOpacity style={[styles.downloadBtn, { backgroundColor: colors.primary }]} onPress={handleDownloadApp}>
+                            <Text style={styles.downloadBtnText}>Download APK</Text>
+                        </TouchableOpacity>
+                        
+                        <TouchableOpacity onPress={() => setShowAppPopup(false)} style={{ marginTop: 15 }}>
+                            <Text style={{ color: colors.secondaryText, textAlign: 'center' }}>No thanks, I'll use the web</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            )}
         </View>
     );
 }
@@ -192,5 +238,13 @@ const styles = StyleSheet.create({
     heartButton: { padding: 8, marginRight: 8 },
     languageBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
     badgeText: { fontSize: 12, fontWeight: '700' },
-    emptyText: { textAlign: 'center', marginTop: 40, fontSize: 16 }
+    emptyText: { textAlign: 'center', marginTop: 40, fontSize: 16 },
+    
+    // Web-to-App Popup Styles
+    popupOverlay: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', zIndex: 1000 },
+    popupBox: { width: '85%', padding: 25, borderRadius: 16, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 8 },
+    popupTitle: { fontSize: 22, fontWeight: 'bold', marginBottom: 10, textAlign: 'center' },
+    popupText: { fontSize: 14, textAlign: 'center', marginBottom: 20, lineHeight: 20 },
+    downloadBtn: { paddingVertical: 14, borderRadius: 10, alignItems: 'center' },
+    downloadBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: 'bold' }
 });
