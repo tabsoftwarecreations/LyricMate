@@ -1,3 +1,4 @@
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import React, { useState, useCallback } from 'react';
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, ScrollView, ActivityIndicator } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
@@ -26,10 +27,9 @@ export default function UploadScreen({ navigation }) {
     );
 
     const checkAuth = async () => {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user) {
             setIsAuthenticated(false);
-            // Bounce to Home, then open Auth to prevent infinite loops
             navigation.navigate('Home');
             navigation.navigate('Auth');
         } else {
@@ -45,7 +45,9 @@ export default function UploadScreen({ navigation }) {
 
         try {
             console.log("📡 Sending request to Gemini...");
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+
+            // MODEL FIX: gemini-pro is deprecated; using gemini-2.0-flash (confirmed active)
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -82,11 +84,13 @@ export default function UploadScreen({ navigation }) {
         }
 
         setLoading(true);
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { session } } = await supabase.auth.getSession();
+        const user = session?.user;
 
         if (!user) {
             setLoading(false);
-            navigation.navigate('Profile');
+            Alert.alert('Not Logged In', 'Please log in first.');
+            navigation.navigate('Auth');
             return;
         }
 

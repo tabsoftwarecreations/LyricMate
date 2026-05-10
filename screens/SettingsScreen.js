@@ -15,9 +15,9 @@ export default function SettingsScreen({ navigation }) {
             "Are you sure you want to permanently delete your account?",
             [
                 { text: "Cancel", style: "cancel" },
-                { 
-                    text: "Delete", 
-                    style: "destructive", 
+                {
+                    text: "Delete",
+                    style: "destructive",
                     onPress: async () => {
                         const { data: { user } } = await supabase.auth.getUser();
                         if (user) {
@@ -28,7 +28,7 @@ export default function SettingsScreen({ navigation }) {
                                 navigation.replace('Auth');
                             }
                         }
-                    } 
+                    }
                 }
             ]
         );
@@ -40,8 +40,8 @@ export default function SettingsScreen({ navigation }) {
                 <Text style={[styles.sectionTitle, { color: colors.primary }]}>Appearance</Text>
                 <View style={styles.row}>
                     <Text style={[styles.label, { color: colors.text }]}>Dark Mode</Text>
-                    <Switch 
-                        value={theme === 'dark'} 
+                    <Switch
+                        value={theme === 'dark'}
                         onValueChange={toggleTheme}
                         trackColor={{ false: "#767577", true: colors.primary }}
                     />
@@ -50,7 +50,7 @@ export default function SettingsScreen({ navigation }) {
 
             <View style={styles.section}>
                 <Text style={[styles.sectionTitle, { color: colors.primary }]}>Lyrics Display</Text>
-                
+
                 <View style={styles.settingBlock}>
                     <Text style={[styles.label, { color: colors.text, marginBottom: 10 }]}>Font Size ({fontSize})</Text>
                     <Slider
@@ -87,9 +87,9 @@ export default function SettingsScreen({ navigation }) {
 
             <View style={styles.section}>
                 <Text style={[styles.sectionTitle, { color: colors.primary }]}>Account</Text>
-                
-                <TouchableOpacity 
-                    style={[styles.dangerButton, { borderColor: '#EF4444' }]} 
+
+                <TouchableOpacity
+                    style={[styles.dangerButton, { borderColor: '#EF4444' }]}
                     onPress={handleDeleteAccount}
                 >
                     <Ionicons name="trash-outline" size={20} color="#EF4444" />
@@ -101,54 +101,14 @@ export default function SettingsScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        padding: 20,
-    },
-    section: {
-        marginBottom: 30,
-    },
-    sectionTitle: {
-        fontSize: 14,
-        fontWeight: 'bold',
-        textTransform: 'uppercase',
-        marginBottom: 15,
-        letterSpacing: 1,
-    },
-    settingBlock: {
-        marginBottom: 20,
-    },
-    row: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-    },
-    label: {
-        fontSize: 16,
-        fontWeight: '600',
-    },
-    pickerContainer: {
-        borderWidth: 1,
-        borderRadius: 12,
-        overflow: 'hidden',
-    },
-    helpText: {
-        fontSize: 12,
-        marginTop: 5,
-        fontStyle: 'italic',
-    },
-    dangerButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 15,
-        borderRadius: 12,
-        borderWidth: 1,
-        marginTop: 10,
-    },
-    dangerButtonText: {
-        color: '#EF4444',
-        fontWeight: 'bold',
-        marginLeft: 10,
-    }
+    container: { flex: 1, padding: 20 },
+    section: { marginBottom: 30 },
+    sectionTitle: { fontSize: 14, fontWeight: 'bold', textTransform: 'uppercase', marginBottom: 15, letterSpacing: 1 },
+    settingBlock: { marginBottom: 20 },
+    row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    label: { fontSize: 16, fontWeight: '600' },
+    pickerContainer: { borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
+    helpText: { fontSize: 12, marginTop: 5, fontStyle: 'italic' },
+    dangerButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 15, borderRadius: 12, borderWidth: 1, marginTop: 10 },
+    dangerButtonText: { color: '#EF4444', fontWeight: 'bold', marginLeft: 10 }
 });

@@ -1,77 +1,79 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+// Create the Context
 const ThemeContext = createContext();
 
-export const ThemeProvider = ({ children }) => {
-    const systemColorScheme = useColorScheme();
-    const [theme, setTheme] = useState(systemColorScheme || 'light');
-    const [fontSize, setFontSize] = useState(18);
-    const [readingLanguage, setReadingLanguage] = useState('English');
+// Define our Color Palettes
+const lightColors = {
+    background: '#F0FDF4', // Light Green background
+    card: '#FFFFFF',
+    text: '#064E3B', // Dark Green text
+    primary: '#166534',
+    secondaryText: '#4B5563',
+    border: '#E5E7EB',
+};
 
+const darkColors = {
+    background: '#022C22', // Very Dark Green background
+    card: '#064E3B',
+    text: '#ECFDF5', // Light text
+    primary: '#10B981', // Bright Green accent
+    secondaryText: '#A7F3D0',
+    border: '#065F46',
+};
+
+export const ThemeProvider = ({ children }) => {
+    const [theme, setTheme] = useState('light');
+    const [fontSize, setFontSize] = useState(18); // Default lyrics font size
+    const [isLoaded, setIsLoaded] = useState(false); // Prevents flickering on load
+
+    // 1. Load saved settings when the app opens
     useEffect(() => {
+        const loadSettings = async () => {
+            try {
+                const savedTheme = await AsyncStorage.getItem('@lyricmate_theme');
+                const savedFontSize = await AsyncStorage.getItem('@lyricmate_fontsize');
+
+                if (savedTheme) setTheme(savedTheme);
+                if (savedFontSize) setFontSize(parseInt(savedFontSize, 10));
+            } catch (error) {
+                console.error('Failed to load settings', error);
+            } finally {
+                setIsLoaded(true);
+            }
+        };
         loadSettings();
     }, []);
 
-    const loadSettings = async () => {
-        try {
-            const savedTheme = await AsyncStorage.getItem('theme');
-            const savedFontSize = await AsyncStorage.getItem('fontSize');
-            const savedLang = await AsyncStorage.getItem('readingLanguage');
-            if (savedTheme) setTheme(savedTheme);
-            if (savedFontSize) setFontSize(parseInt(savedFontSize));
-            if (savedLang) setReadingLanguage(savedLang);
-        } catch (error) {
-            console.error('Error loading settings:', error);
-        }
-    };
-
+    // 2. Toggle Theme and Save to Memory
     const toggleTheme = async () => {
         const newTheme = theme === 'light' ? 'dark' : 'light';
         setTheme(newTheme);
-        await AsyncStorage.setItem('theme', newTheme);
-    };
-
-    const updateFontSize = async (size) => {
-        setFontSize(size);
-        await AsyncStorage.setItem('fontSize', size.toString());
-    };
-
-    const updateReadingLanguage = async (lang) => {
-        setReadingLanguage(lang);
-        await AsyncStorage.setItem('readingLanguage', lang);
-    };
-
-    const colors = {
-        light: {
-            background: '#FFFFFF',
-            text: '#000000',
-            primary: '#166534',
-            card: '#F3F4F6',
-            border: '#E5E7EB',
-            secondaryText: '#6B7280',
-        },
-        dark: {
-            background: '#111827',
-            text: '#F9FAFB',
-            primary: '#22C55E',
-            card: '#1F2937',
-            border: '#374151',
-            secondaryText: '#9CA3AF',
+        try {
+            await AsyncStorage.setItem('@lyricmate_theme', newTheme);
+        } catch (error) {
+            console.error('Failed to save theme', error);
         }
     };
 
+    // 3. Change Font Size and Save to Memory
+    const changeFontSize = async (newSize) => {
+        setFontSize(newSize);
+        try {
+            await AsyncStorage.setItem('@lyricmate_fontsize', newSize.toString());
+        } catch (error) {
+            console.error('Failed to save font size', error);
+        }
+    };
+
+    const colors = theme === 'light' ? lightColors : darkColors;
+
+    // Don't render the app until we know the user's preferences to prevent flashes
+    if (!isLoaded) return null;
+
     return (
-        <ThemeContext.Provider value={{ 
-            theme, 
-            toggleTheme, 
-            fontSize, 
-            updateFontSize, 
-            readingLanguage,
-            updateReadingLanguage,
-            colors: colors[theme] 
-        }}>
+        <ThemeContext.Provider value={{ theme, colors, toggleTheme, fontSize, changeFontSize }}>
             {children}
         </ThemeContext.Provider>
     );

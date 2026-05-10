@@ -19,7 +19,7 @@ import AdminScreen from "./screens/AdminScreen";
 import CategoriesScreen from "./screens/CategoriesScreen";
 import FavouritesScreen from "./screens/FavouritesScreen";
 import ProfileScreen from "./screens/ProfileScreen";
-import SettingsScreen from "./screens/SettingsScreen";
+import SettingsScreen from "./screens/SettingsScreen"; // VERIFIED IMPORT
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -44,7 +44,6 @@ function MainTabNavigator() {
                     backgroundColor: colors.background,
                     borderTopColor: colors.border
                 },
-
                 tabBarIcon: ({ focused, color, size }) => {
                     let iconName;
                     if (route.name === 'Home') iconName = focused ? 'home' : 'home-outline';
@@ -65,14 +64,12 @@ function MainTabNavigator() {
                 options={{ title: 'Add Song' }}
                 listeners={({ navigation }) => ({
                     tabPress: async (e) => {
-                        e.preventDefault(); // Stop the tab from opening immediately
-
-                        // Check auth silently before doing anything
-                        const { data: { user } } = await supabase.auth.getUser();
-                        if (!user) {
-                            navigation.navigate('Auth'); // Send straight to Login!
+                        e.preventDefault();
+                        const { data: { session } } = await supabase.auth.getSession();
+                        if (!session?.user) {
+                            navigation.navigate('Auth');
                         } else {
-                            navigation.navigate('Upload'); // Allow them in!
+                            navigation.navigate('Upload');
                         }
                     },
                 })}
@@ -111,6 +108,9 @@ function AppNavigator() {
             <Stack.Screen name="Language" component={LanguageScreen} options={({ route }) => ({ title: route.params.categoryName })} />
             <Stack.Screen name="Auth" component={AuthScreen} options={{ title: 'Login' }} />
             <Stack.Screen name="Admin" component={AdminScreen} options={{ title: 'Admin Portal' }} />
+
+            {/* THE FIX: Perfectly wired Settings Component */}
+            <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
         </Stack.Navigator>
     );
 }

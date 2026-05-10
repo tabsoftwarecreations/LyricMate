@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { StyleSheet, Text, View, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from './supabase';
@@ -11,59 +11,54 @@ export default function FavouritesScreen({ navigation }) {
     const [loading, setLoading] = useState(true);
     const [userId, setUserId] = useState(null);
 
-    useEffect(() => {
-        const getUserId = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user) setUserId(user.id);
-            else navigation.navigate('Auth');
-        };
-        getUserId();
-    }, []);
-
+    // ==========================================
+    // REFRESH DATA ON EVERY SCREEN FOCUS
+    // ==========================================
     useFocusEffect(
         useCallback(() => {
-            if (userId) {
-                fetchFavorites();
-            }
-        }, [userId])
+            const fetchFavorites = async () => {
+                setLoading(true);
+
+                // 1. FRESH AUTH CHECK
+                const { data: { user } } = await supabase.auth.getUser();
+                if (!user) {
+                    setUserId(null);
+                    setFavoriteSongs([]);
+                    setLoading(false);
+                    return;
+                }
+
+                setUserId(user.id);
+
+                // 2. GET FAVORITE IDs
+                const { data: favData, error: favError } = await supabase
+                    .from('favorites')
+                    .select('song_id')
+                    .eq('user_id', user.id);
+
+                if (favError || !favData || favData.length === 0) {
+                    setFavoriteSongs([]);
+                    setLoading(false);
+                    return;
+                }
+
+                const songIds = favData.map(f => f.song_id);
+
+                // 3. FETCH SONG DETAILS
+                const { data: songsData, error: songsError } = await supabase
+                    .from('songs')
+                    .select('*')
+                    .in('id', songIds)
+                    .order('title', { ascending: true });
+
+                if (!songsError) setFavoriteSongs(songsData);
+
+                setLoading(false);
+            };
+
+            fetchFavorites();
+        }, [])
     );
-
-    const fetchFavorites = async () => {
-        setLoading(true);
-        // Get favorite IDs for this user
-        const { data: favData, error: favError } = await supabase
-            .from('favorites')
-            .select('song_id')
-            .eq('user_id', userId);
-
-        if (favError) {
-            console.error('Error fetching favorite IDs:', favError);
-            setLoading(false);
-            return;
-        }
-
-        const songIds = favData.map(f => f.song_id);
-
-        if (songIds.length === 0) {
-            setFavoriteSongs([]);
-            setLoading(false);
-            return;
-        }
-
-        // Fetch song details for those IDs
-        const { data: songsData, error: songsError } = await supabase
-            .from('songs')
-            .select('*')
-            .in('id', songIds)
-            .order('title', { ascending: true });
-
-        if (songsError) {
-            console.error('Error fetching favorite songs:', songsError);
-        } else {
-            setFavoriteSongs(songsData);
-        }
-        setLoading(false);
-    };
 
     const removeFavorite = async (songId) => {
         const { error } = await supabase
@@ -71,14 +66,14 @@ export default function FavouritesScreen({ navigation }) {
             .delete()
             .eq('user_id', userId)
             .eq('song_id', songId);
-        
+
         if (!error) {
             setFavoriteSongs(favoriteSongs.filter(s => s.id !== songId));
         }
     };
 
     const renderSong = ({ item }) => (
-        <TouchableOpacity 
+        <TouchableOpacity
             style={[styles.songCard, { backgroundColor: colors.card }]}
             onPress={() => navigation.navigate('Lyrics', { song: item })}
         >
@@ -118,46 +113,13 @@ export default function FavouritesScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-    listContainer: {
-        padding: 20,
-    },
-    songCard: {
-        padding: 16,
-        borderRadius: 16,
-        marginBottom: 12,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 3,
-    },
-    cardHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-    },
-    songTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
-    },
-    songArtist: {
-        fontSize: 14,
-        marginTop: 4,
-    },
-    heartButton: {
-        padding: 8,
-    },
-    emptyContainer: {
-        alignItems: 'center',
-        marginTop: 100,
-    },
-    emptyText: {
-        textAlign: 'center',
-        marginTop: 20,
-        fontSize: 16,
-        paddingHorizontal: 40,
-    }
+    container: { flex: 1 },
+    listContainer: { padding: 20 },
+    songCard: { padding: 16, borderRadius: 16, marginBottom: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
+    cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    songTitle: { fontSize: 18, fontWeight: 'bold' },
+    songArtist: { fontSize: 14, marginTop: 4 },
+    heartButton: { padding: 8 },
+    emptyContainer: { alignItems: 'center', marginTop: 100 },
+    emptyText: { textAlign: 'center', marginTop: 20, fontSize: 16, paddingHorizontal: 40 }
 });

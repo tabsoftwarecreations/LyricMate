@@ -1,266 +1,178 @@
-import React, { useState, useEffect } from 'react';
-import { 
-    View, 
-    Text, 
-    StyleSheet, 
-    FlatList, 
-    TouchableOpacity, 
-    Alert, 
-    TextInput, 
-    ScrollView, 
-    Platform,
-    ActivityIndicator 
-} from 'react-native';
-import { supabase } from './supabase';
+import React, { useState, useCallback } from 'react';
+import { StyleSheet, Text, View, FlatList, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { supabase } from './supabase';
+import { useFocusEffect } from '@react-navigation/native';
+import { useTheme } from '../context/ThemeContext';
 
 export default function AdminScreen({ navigation }) {
+    const { colors, theme } = useTheme();
     const [pendingSongs, setPendingSongs] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [isAdmin, setIsAdmin] = useState(false);
-    const [editingSong, setEditingSong] = useState(null);
 
-    useEffect(() => {
-        const checkAdmin = async () => {
-            try {
-                const { data: { user } } = await supabase.auth.getUser();
-                // Admin check: specific email or guru
-                if (user && (user.email === 'admin@lyricmate.com' || user.email.includes('guru'))) {
-                    setIsAdmin(true);
-                    fetchPendingSongs();
-                } else {
-                    setIsAdmin(false);
-                }
-            } catch (error) {
-                console.error("Admin check failed:", error);
-            } finally {
-                setLoading(false);
-            }
-        };
-        checkAdmin();
-    }, []);
+    // Fetch pending songs every time the admin opens the screen
+    useFocusEffect(
+        useCallback(() => {
+            fetchPendingSongs();
+        }, [])
+    );
 
     const fetchPendingSongs = async () => {
         setLoading(true);
-        // Use 'id' for sorting as 'created_at' might be missing in some schemas
         const { data, error } = await supabase
             .from('songs')
             .select('*')
             .eq('status', 'pending')
-            .order('id', { ascending: false });
-        
+            .order('created_at', { ascending: false });
+
         if (error) {
-            console.error("Error fetching songs:", error);
-            // Fallback: try without order
-            const { data: dataNoOrder } = await supabase
-                .from('songs')
-                .select('*')
-                .eq('status', 'pending');
-            setPendingSongs(dataNoOrder || []);
+            console.error('Error fetching pending songs:', error);
+            Alert.alert('Error', 'Could not load pending songs.');
         } else {
             setPendingSongs(data || []);
         }
         setLoading(false);
     };
 
-    const handleAction = async (id, status) => {
-        const { error } = await supabase
-            .from('songs')
-            .update({ status: status })
-            .eq('id', id);
+    const handleApprove = async (songId, title) => {
+        Alert.alert(
+            "Approve Song",
+            `Are you sure you want to approve "${title}"? It will go live immediately.`,
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Approve",
+                    style: "default",
+                    onPress: async () => {
+                        const { error } = await supabase
+                            .from('songs')
+                            .update({ status: 'approved' })
+                            .eq('id', songId);
 
-        if (error) {
-            Alert.alert("Error", error.message);
-        } else {
-            setPendingSongs(prev => prev.filter(s => s.id !== id));
-            Alert.alert("Success", `Song ${status === 'approved' ? 'Approved' : 'Rejected'}`);
-        }
-    };
-
-    const handleSaveEdit = async () => {
-        if (!editingSong) return;
-        const { error } = await supabase
-            .from('songs')
-            .update({ 
-                title: editingSong.title,
-                artist: editingSong.artist,
-                lyrics: editingSong.lyrics,
-                transliterations: editingSong.transliterations 
-            })
-            .eq('id', editingSong.id);
-
-        if (error) {
-            Alert.alert("Error", error.message);
-        } else {
-            setEditingSong(null);
-            fetchPendingSongs();
-            Alert.alert("Success", "Changes saved.");
-        }
-    };
-
-    if (loading) {
-        return (
-            <View style={styles.centered}>
-                <ActivityIndicator size="large" color="#166534" />
-                <Text style={{ marginTop: 10 }}>Verifying Credentials...</Text>
-            </View>
+                        if (error) {
+                            Alert.alert('Error', 'Failed to approve song.');
+                        } else {
+                            // Remove it from the local list instantly
+                            setPendingSongs(pendingSongs.filter(song => song.id !== songId));
+                        }
+                    }
+                }
+            ]
         );
-    }
+    };
 
-    if (!isAdmin) {
-        return (
-            <View style={styles.centered}>
-                <Ionicons name="lock-closed" size={64} color="#DC2626" />
-                <Text style={styles.errorText}>Access Denied</Text>
-                <TouchableOpacity style={styles.backButton} onPress={() => navigation.navigate('MainApp')}>
-                    <Text style={styles.backButtonText}>Return to App</Text>
+    const handleReject = async (songId, title) => {
+        Alert.alert(
+            "Reject Song",
+            `Are you sure you want to delete "${title}" permanently?`,
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Reject & Delete",
+                    style: "destructive",
+                    onPress: async () => {
+                        const { error } = await supabase
+                            .from('songs')
+                            .delete()
+                            .eq('id', songId);
+
+                        if (error) {
+                            Alert.alert('Error', 'Failed to delete song.');
+                        } else {
+                            setPendingSongs(pendingSongs.filter(song => song.id !== songId));
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
+    const renderPendingSong = ({ item }) => (
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={styles.cardHeader}>
+                <View style={{ flex: 1 }}>
+                    <Text style={[styles.title, { color: colors.text }]}>{item.title}</Text>
+                    <Text style={[styles.artist, { color: colors.secondaryText }]}>{item.artist}</Text>
+                    <View style={styles.categoryBadge}>
+                        <Text style={styles.categoryText}>{item.category}</Text>
+                    </View>
+                </View>
+            </View>
+
+            <Text style={[styles.lyricsPreview, { color: colors.secondaryText }]} numberOfLines={3}>
+                {item.lyrics}
+            </Text>
+
+            <View style={styles.buttonRow}>
+                <TouchableOpacity
+                    style={[styles.actionButton, styles.rejectButton]}
+                    onPress={() => handleReject(item.id, item.title)}
+                >
+                    <Ionicons name="trash-outline" size={20} color="#EF4444" />
+                    <Text style={[styles.buttonText, { color: '#EF4444' }]}>Reject</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    style={[styles.actionButton, styles.approveButton]}
+                    onPress={() => handleApprove(item.id, item.title)}
+                >
+                    <Ionicons name="checkmark-circle-outline" size={20} color="#10B981" />
+                    <Text style={[styles.buttonText, { color: '#10B981' }]}>Approve</Text>
                 </TouchableOpacity>
             </View>
-        );
-    }
+        </View>
+    );
 
     return (
-        <View style={styles.container}>
-            <View style={styles.header}>
-                <Text style={styles.headerTitle}>Admin Dashboard</Text>
-                <TouchableOpacity onPress={() => navigation.navigate('MainApp')}>
-                    <Ionicons name="exit-outline" size={24} color="#FFF" />
-                </TouchableOpacity>
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
+            <View style={[styles.header, { borderBottomColor: colors.border }]}>
+                <Text style={[styles.headerTitle, { color: colors.primary }]}>Admin Dashboard</Text>
+                <Text style={[styles.headerSubtitle, { color: colors.secondaryText }]}>
+                    Review user submissions
+                </Text>
             </View>
 
-            <View style={styles.content}>
-                {editingSong ? (
-                    <ScrollView style={styles.editorContainer}>
-                        <Text style={styles.sectionTitle}>Edit Submission</Text>
-                        
-                        <Text style={styles.label}>Title</Text>
-                        <TextInput 
-                            style={styles.input} 
-                            value={editingSong.title}
-                            onChangeText={t => setEditingSong({...editingSong, title: t})}
-                        />
-
-                        <Text style={styles.label}>Artist</Text>
-                        <TextInput 
-                            style={styles.input} 
-                            value={editingSong.artist}
-                            onChangeText={t => setEditingSong({...editingSong, artist: t})}
-                        />
-
-                        <Text style={styles.label}>Lyrics</Text>
-                        <TextInput 
-                            style={[styles.input, styles.textArea]} 
-                            multiline 
-                            value={editingSong.lyrics}
-                            onChangeText={t => setEditingSong({...editingSong, lyrics: t})}
-                        />
-
-                        <Text style={styles.label}>Transliteration</Text>
-                        <TextInput 
-                            style={[styles.input, styles.textArea]} 
-                            multiline 
-                            value={editingSong.transliterations || ''}
-                            onChangeText={t => setEditingSong({...editingSong, transliterations: t})}
-                        />
-
-                        <View style={styles.editorActions}>
-                            <TouchableOpacity style={styles.saveBtn} onPress={handleSaveEdit}>
-                                <Text style={styles.btnText}>Save & Update</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.cancelBtn} onPress={() => setEditingSong(null)}>
-                                <Text style={styles.cancelBtnText}>Cancel</Text>
-                            </TouchableOpacity>
+            {loading ? (
+                <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 40 }} />
+            ) : (
+                <FlatList
+                    data={pendingSongs}
+                    keyExtractor={(item) => item.id.toString()}
+                    renderItem={renderPendingSong}
+                    contentContainerStyle={styles.listContainer}
+                    showsVerticalScrollIndicator={false}
+                    ListEmptyComponent={
+                        <View style={styles.emptyContainer}>
+                            <Ionicons name="checkmark-done-circle-outline" size={64} color={colors.border} />
+                            <Text style={[styles.emptyText, { color: colors.secondaryText }]}>
+                                You are all caught up! No pending songs to review.
+                            </Text>
                         </View>
-                    </ScrollView>
-                ) : (
-                    <FlatList
-                        data={pendingSongs}
-                        keyExtractor={item => item.id.toString()}
-                        ListHeaderComponent={<Text style={styles.sectionTitle}>Pending Approvals ({pendingSongs.length})</Text>}
-                        renderItem={({ item }) => (
-                            <View style={styles.songRow}>
-                                <View style={{ flex: 1 }}>
-                                    <Text style={styles.songTitle}>{item.title}</Text>
-                                    <Text style={styles.songArtist}>{item.artist} | {item.category}</Text>
-                                </View>
-                                <View style={styles.rowActions}>
-                                    <TouchableOpacity style={styles.actionIcon} onPress={() => setEditingSong(item)}>
-                                        <Ionicons name="pencil" size={22} color="#2563EB" />
-                                    </TouchableOpacity>
-                                    <TouchableOpacity style={styles.actionIcon} onPress={() => handleAction(item.id, 'approved')}>
-                                        <Ionicons name="checkmark-circle" size={24} color="#059669" />
-                                    </TouchableOpacity>
-                                    <TouchableOpacity style={styles.actionIcon} onPress={() => handleAction(item.id, 'rejected')}>
-                                        <Ionicons name="trash" size={24} color="#DC2626" />
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
-                        )}
-                        ListEmptyComponent={
-                            <View style={styles.emptyState}>
-                                <Ionicons name="happy-outline" size={48} color="#9CA3AF" />
-                                <Text style={styles.emptyText}>All caught up! No pending songs.</Text>
-                            </View>
-                        }
-                    />
-                )}
-            </View>
+                    }
+                />
+            )}
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#F3F4F6' },
-    centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
-    header: { 
-        height: 70, 
-        backgroundColor: '#166534', 
-        flexDirection: 'row', 
-        alignItems: 'center', 
-        justifyContent: 'space-between', 
-        paddingHorizontal: 20,
-    },
-    headerTitle: { color: '#FFF', fontSize: 20, fontWeight: 'bold' },
-    content: { flex: 1, padding: 20 },
-    sectionTitle: { fontSize: 22, fontWeight: 'bold', marginBottom: 20, color: '#111827' },
-    songRow: { 
-        backgroundColor: '#FFF', 
-        padding: 20, 
-        borderRadius: 12, 
-        flexDirection: 'row', 
-        alignItems: 'center', 
-        marginBottom: 12,
-        ...Platform.select({
-            ios: {
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.1,
-                shadowRadius: 4,
-            },
-            android: {
-                elevation: 3,
-            },
-            web: {
-                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-            }
-        })
-    },
-    songTitle: { fontSize: 18, fontWeight: 'bold', color: '#111827' },
-    songArtist: { fontSize: 14, color: '#6B7280', marginTop: 4 },
-    rowActions: { flexDirection: 'row', alignItems: 'center' },
-    actionIcon: { marginLeft: 15 },
-    errorText: { fontSize: 24, fontWeight: 'bold', color: '#DC2626', marginTop: 20 },
-    backButton: { marginTop: 30, backgroundColor: '#166534', paddingVertical: 12, paddingHorizontal: 24, borderRadius: 8 },
-    backButtonText: { color: '#FFF', fontWeight: 'bold' },
-    editorContainer: { backgroundColor: '#FFF', padding: 20, borderRadius: 12 },
-    label: { fontSize: 14, fontWeight: 'bold', color: '#374151', marginBottom: 5, marginTop: 15 },
-    input: { borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, padding: 12, fontSize: 16, color: '#111827' },
-    textArea: { minHeight: 150, textAlignVertical: 'top' },
-    editorActions: { flexDirection: 'row', marginTop: 30, marginBottom: 50 },
-    saveBtn: { backgroundColor: '#166534', paddingVertical: 14, paddingHorizontal: 24, borderRadius: 8, flex: 2, alignItems: 'center' },
-    cancelBtn: { paddingVertical: 14, paddingHorizontal: 24, flex: 1, alignItems: 'center' },
-    btnText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
-    cancelBtnText: { color: '#DC2626', fontWeight: 'bold' },
-    emptyState: { alignItems: 'center', marginTop: 100 },
-    emptyText: { marginTop: 15, fontSize: 16, color: '#9CA3AF' }
+    container: { flex: 1 },
+    header: { padding: 20, paddingTop: 20, borderBottomWidth: 1 },
+    headerTitle: { fontSize: 24, fontWeight: 'bold' },
+    headerSubtitle: { fontSize: 16, marginTop: 4 },
+    listContainer: { padding: 20, paddingBottom: 50 },
+    card: { padding: 16, borderRadius: 12, borderWidth: 1, marginBottom: 15 },
+    cardHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
+    title: { fontSize: 18, fontWeight: 'bold' },
+    artist: { fontSize: 14, marginTop: 2, marginBottom: 8 },
+    categoryBadge: { alignSelf: 'flex-start', backgroundColor: '#E0E7FF', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+    categoryText: { fontSize: 12, color: '#4338CA', fontWeight: 'bold' },
+    lyricsPreview: { fontSize: 14, fontStyle: 'italic', marginBottom: 15, lineHeight: 20 },
+    buttonRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
+    actionButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 8, borderWidth: 1, marginHorizontal: 5 },
+    rejectButton: { borderColor: '#FECACA', backgroundColor: '#FEF2F2' },
+    approveButton: { borderColor: '#A7F3D0', backgroundColor: '#ECFDF5' },
+    buttonText: { fontWeight: 'bold', marginLeft: 8 },
+    emptyContainer: { alignItems: 'center', marginTop: 100 },
+    emptyText: { textAlign: 'center', marginTop: 20, fontSize: 16, paddingHorizontal: 40 }
 });

@@ -52,6 +52,20 @@ export default function AuthScreen({ navigation }) {
         setLoading(false);
     };
 
+    // --- EMERGENCY RESET ---
+    const handleEmergencyClear = async () => {
+        setLoading(true);
+        setEmail('');
+        setPassword('');
+        setIsSignUp(false);
+
+        // This forces Supabase to kill any corrupted ghost sessions
+        await supabase.auth.signOut();
+
+        setLoading(false);
+        Alert.alert("Cleared 🧹", "Your session and text fields have been completely wiped.");
+    };
+
     return (
         <KeyboardAvoidingView
             // FIX: Only apply keyboard behavior on mobile platforms. Ignore on web.
@@ -121,6 +135,15 @@ export default function AuthScreen({ navigation }) {
                     </TouchableOpacity>
 
                     <TouchableOpacity style={styles.toggleContainer} onPress={() => setIsSignUp(!isSignUp)}>
+                        {/* EMERGENCY RESET BUTTON */}
+                        <TouchableOpacity
+                            style={{ marginTop: 40, alignItems: 'center' }}
+                            onPress={handleEmergencyClear}
+                        >
+                            <Text style={{ color: colors.secondaryText, fontSize: 14, textDecorationLine: 'underline' }}>
+                                Having trouble? Clear Session
+                            </Text>
+                        </TouchableOpacity>
                         <Text style={[styles.toggleText, { color: colors.primary }]}>
                             {isSignUp ? "Already have an account? Log In" : "Don't have an account? Sign Up"}
                         </Text>

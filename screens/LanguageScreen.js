@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { StyleSheet, Text, View, FlatList, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
 import { supabase } from './supabase';
 import { useFocusEffect } from '@react-navigation/native';
@@ -9,56 +9,56 @@ import { Ionicons } from '@expo/vector-icons';
 export default function LanguageScreen({ route, navigation }) {
     const { categoryName } = route.params;
     const { colors, theme } = useTheme();
-    
+
     const [searchQuery, setSearchQuery] = useState('');
     const [songs, setSongs] = useState([]);
     const [favorites, setFavorites] = useState([]);
     const [loading, setLoading] = useState(true);
     const [userId, setUserId] = useState(null);
 
-    useEffect(() => {
-        const getUserId = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user) setUserId(user.id);
-        };
-        getUserId();
-    }, []);
-
+    // ==========================================
+    // REFRESH DATA ON EVERY SCREEN FOCUS
+    // ==========================================
     useFocusEffect(
         useCallback(() => {
-            setLoading(true);
+            const fetchData = async () => {
+                setLoading(true);
+
+                // 1. FRESH AUTH CHECK
+                const { data: { user } } = await supabase.auth.getUser();
+                const currentUserId = user ? user.id : null;
+                setUserId(currentUserId);
+
+                // 2. FETCH CATEGORY SONGS
+                const { data: songsData, error: songsError } = await supabase
+                    .from('songs')
+                    .select('*')
+                    .eq('category', categoryName)
+                    .eq('status', 'approved')
+                    .order('title', { ascending: true });
+
+                if (!songsError) setSongs(songsData || []);
+
+                // 3. FETCH FAVORITES IF LOGGED IN
+                if (currentUserId) {
+                    const { data: favData, error: favError } = await supabase
+                        .from('favorites')
+                        .select('song_id')
+                        .eq('user_id', currentUserId);
+
+                    if (!favError) {
+                        setFavorites(favData?.map(f => f.song_id) || []);
+                    }
+                } else {
+                    setFavorites([]);
+                }
+
+                setLoading(false);
+            };
+
             fetchData();
-        }, [categoryName, userId])
+        }, [categoryName])
     );
-
-    const fetchData = async () => {
-        const { data: songsData, error: songsError } = await supabase
-            .from('songs')
-            .select('*')
-            .eq('category', categoryName)
-            .eq('status', 'approved')
-            .order('title', { ascending: true });
-
-        if (songsError) {
-            console.error('Error fetching songs:', songsError);
-        } else {
-            setSongs(songsData || []);
-        }
-
-        if (userId) {
-            const { data: favData, error: favError } = await supabase
-                .from('favorites')
-                .select('song_id')
-                .eq('user_id', userId);
-
-            if (favError) {
-                console.error('Error fetching favorites:', favError);
-            } else {
-                setFavorites(favData?.map(f => f.song_id) || []);
-            }
-        }
-        setLoading(false);
-    };
 
     const toggleFavorite = async (songId) => {
         if (!userId) {
@@ -73,7 +73,7 @@ export default function LanguageScreen({ route, navigation }) {
                 .delete()
                 .eq('user_id', userId)
                 .eq('song_id', songId);
-            
+
             if (!error) {
                 setFavorites(favorites.filter(id => id !== songId));
             }
@@ -81,7 +81,7 @@ export default function LanguageScreen({ route, navigation }) {
             const { error } = await supabase
                 .from('favorites')
                 .insert([{ user_id: userId, song_id: songId }]);
-            
+
             if (!error) {
                 setFavorites([...favorites, songId]);
             }
@@ -90,13 +90,13 @@ export default function LanguageScreen({ route, navigation }) {
 
     const filteredSongs = songs.filter((song) => {
         return song.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-               song.artist.toLowerCase().includes(searchQuery.toLowerCase());
+            song.artist.toLowerCase().includes(searchQuery.toLowerCase());
     });
 
     const renderSong = ({ item }) => {
         const isFavorite = favorites.includes(item.id);
         return (
-            <TouchableOpacity 
+            <TouchableOpacity
                 style={[styles.songCard, { backgroundColor: colors.card }]}
                 onPress={() => navigation.navigate('Lyrics', { song: item })}
             >
@@ -106,10 +106,10 @@ export default function LanguageScreen({ route, navigation }) {
                         <Text style={[styles.songArtist, { color: colors.secondaryText }]}>{item.artist}</Text>
                     </View>
                     <TouchableOpacity onPress={() => toggleFavorite(item.id)} style={styles.heartButton}>
-                        <Ionicons 
-                            name={isFavorite ? "heart" : "heart-outline"} 
-                            size={24} 
-                            color={isFavorite ? "#EF4444" : colors.secondaryText} 
+                        <Ionicons
+                            name={isFavorite ? "heart" : "heart-outline"}
+                            size={24}
+                            color={isFavorite ? "#EF4444" : colors.secondaryText}
                         />
                     </TouchableOpacity>
                 </View>

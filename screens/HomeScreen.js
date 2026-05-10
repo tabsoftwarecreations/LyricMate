@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { StyleSheet, Text, View, FlatList, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from './supabase';
@@ -14,48 +14,48 @@ export default function HomeScreen({ navigation }) {
     const [loading, setLoading] = useState(true);
     const [userId, setUserId] = useState(null);
 
-    useEffect(() => {
-        const getUserId = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user) setUserId(user.id);
-        };
-        getUserId();
-    }, []);
-
+    // ==========================================
+    // REFRESH DATA ON EVERY SCREEN FOCUS
+    // ==========================================
     useFocusEffect(
         useCallback(() => {
-            setLoading(true);
+            const fetchAllData = async () => {
+                setLoading(true);
+
+                // 1. FRESH AUTH CHECK
+                const { data: { user } } = await supabase.auth.getUser();
+                const currentUserId = user ? user.id : null;
+                setUserId(currentUserId);
+
+                // 2. FETCH ALL APPROVED SONGS
+                const { data: songsData, error: songsError } = await supabase
+                    .from('songs')
+                    .select('*')
+                    .eq('status', 'approved')
+                    .order('title', { ascending: true });
+
+                if (!songsError) setSongs(songsData);
+
+                // 3. FETCH FAVORITES IF LOGGED IN
+                if (currentUserId) {
+                    const { data: favData, error: favError } = await supabase
+                        .from('favorites')
+                        .select('song_id')
+                        .eq('user_id', currentUserId);
+
+                    if (!favError) {
+                        setFavorites(favData.map(f => f.song_id));
+                    }
+                } else {
+                    setFavorites([]); // Clear hearts if logged out
+                }
+
+                setLoading(false);
+            };
+
             fetchAllData();
-        }, [userId])
+        }, [])
     );
-
-    const fetchAllData = async () => {
-        const { data: songsData, error: songsError } = await supabase
-            .from('songs')
-            .select('*')
-            .eq('status', 'approved')
-            .order('title', { ascending: true });
-
-        if (songsError) {
-            console.error('Error fetching songs:', songsError);
-        } else {
-            setSongs(songsData);
-        }
-
-        if (userId) {
-            const { data: favData, error: favError } = await supabase
-                .from('favorites')
-                .select('song_id')
-                .eq('user_id', userId);
-
-            if (favError) {
-                console.error('Error fetching favorites:', favError);
-            } else {
-                setFavorites(favData.map(f => f.song_id));
-            }
-        }
-        setLoading(false);
-    };
 
     const toggleFavorite = async (songId) => {
         if (!userId) {
@@ -70,7 +70,7 @@ export default function HomeScreen({ navigation }) {
                 .delete()
                 .eq('user_id', userId)
                 .eq('song_id', songId);
-            
+
             if (!error) {
                 setFavorites(favorites.filter(id => id !== songId));
             }
@@ -78,7 +78,7 @@ export default function HomeScreen({ navigation }) {
             const { error } = await supabase
                 .from('favorites')
                 .insert([{ user_id: userId, song_id: songId }]);
-            
+
             if (!error) {
                 setFavorites([...favorites, songId]);
             }
@@ -87,13 +87,13 @@ export default function HomeScreen({ navigation }) {
 
     const filteredSongs = songs.filter((song) => {
         return song.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-               song.artist.toLowerCase().includes(searchQuery.toLowerCase());
+            song.artist.toLowerCase().includes(searchQuery.toLowerCase());
     });
 
     const renderSong = ({ item }) => {
         const isFavorite = favorites.includes(item.id);
         return (
-            <TouchableOpacity 
+            <TouchableOpacity
                 style={[styles.songCard, { backgroundColor: colors.card }]}
                 onPress={() => navigation.navigate('Lyrics', { song: item })}
             >
@@ -104,10 +104,10 @@ export default function HomeScreen({ navigation }) {
                     </View>
                     <View style={styles.cardActions}>
                         <TouchableOpacity onPress={() => toggleFavorite(item.id)} style={styles.heartButton}>
-                            <Ionicons 
-                                name={isFavorite ? "heart" : "heart-outline"} 
-                                size={24} 
-                                color={isFavorite ? "#EF4444" : colors.secondaryText} 
+                            <Ionicons
+                                name={isFavorite ? "heart" : "heart-outline"}
+                                size={24}
+                                color={isFavorite ? "#EF4444" : colors.secondaryText}
                             />
                         </TouchableOpacity>
                         <View style={[styles.languageBadge, { backgroundColor: theme === 'dark' ? '#065F46' : '#DCFCE7' }]}>
@@ -130,7 +130,7 @@ export default function HomeScreen({ navigation }) {
     return (
         <View style={[styles.container, { backgroundColor: colors.background }]}>
             <StatusBar style={theme === 'dark' ? "light" : "dark"} />
-            
+
             <View style={[styles.header, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
                 <View style={styles.titleRow}>
                     <Ionicons name="musical-notes" size={32} color={colors.primary} />
@@ -169,93 +169,22 @@ export default function HomeScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-    header: {
-        paddingTop: 50,
-        paddingHorizontal: 20,
-        paddingBottom: 20,
-        borderBottomWidth: 1,
-    },
-    titleRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    headerTitle: {
-        fontSize: 28,
-        fontWeight: 'bold',
-        marginLeft: 10,
-    },
-    headerSubtitle: {
-        fontSize: 16,
-        marginTop: 4,
-    },
-    searchContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginHorizontal: 20,
-        marginTop: 15,
-        marginBottom: 5,
-        paddingHorizontal: 12,
-        borderRadius: 12,
-        borderWidth: 1,
-    },
-    searchIcon: {
-        marginRight: 8,
-    },
-    searchInput: {
-        flex: 1,
-        paddingVertical: 12,
-        fontSize: 16,
-    },
-    listContainer: {
-        padding: 20,
-        paddingBottom: 100,
-    },
-    songCard: {
-        padding: 16,
-        borderRadius: 16,
-        marginBottom: 12,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 3,
-    },
-    cardHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-    },
-    songTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
-    },
-    songArtist: {
-        fontSize: 14,
-        marginTop: 4,
-    },
-    cardActions: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    heartButton: {
-        padding: 8,
-        marginRight: 8,
-    },
-    languageBadge: {
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 12,
-    },
-    badgeText: {
-        fontSize: 12,
-        fontWeight: '700',
-    },
-    emptyText: {
-        textAlign: 'center',
-        marginTop: 40,
-        fontSize: 16,
-    }
-});
+    container: { flex: 1 },
+    header: { paddingTop: 50, paddingHorizontal: 20, paddingBottom: 20, borderBottomWidth: 1 },
+    titleRow: { flexDirection: 'row', alignItems: 'center' },
+    headerTitle: { fontSize: 28, fontWeight: 'bold', marginLeft: 10 },
+    headerSubtitle: { fontSize: 16, marginTop: 4 },
+    searchContainer: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 20, marginTop: 15, marginBottom: 5, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1 },
+    searchIcon: { marginRight: 8 },
+    searchInput: { flex: 1, paddingVertical: 12, fontSize: 16 },
+    listContainer: { padding: 20, paddingBottom: 100 },
+    songCard: { padding: 16, borderRadius: 16, marginBottom: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
+    cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    songTitle: { fontSize: 18, fontWeight: 'bold' },
+    songArtist: { fontSize: 14, marginTop: 4 },
+    cardActions: { flexDirection: 'row', alignItems: 'center' },
+    heartButton: { padding: 8, marginRight: 8 },
+    languageBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+    badgeText: { fontSize: 12, fontWeight: '700' },
+    emptyText: { textAlign: 'center', marginTop: 40, fontSize: 16 }
+});
