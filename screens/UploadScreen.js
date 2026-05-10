@@ -1,4 +1,3 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import React, { useState, useCallback } from 'react';
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, ScrollView, ActivityIndicator } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
@@ -38,41 +37,47 @@ export default function UploadScreen({ navigation }) {
     };
 
     const generateTransliteration = async (lyrics, lang) => {
-        const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
-        console.log("🔑 Using API Key (first 5):", GEMINI_API_KEY?.substring(0, 5));
-
-        const prompt = `Transliterate the following ${lang} lyrics into English phonetics. Return ONLY the transliterated text without any conversational filler or extra notes:\n\n${lyrics}`;
+        const GROQ_API_KEY = process.env.EXPO_PUBLIC_GROQ_API_KEY;
+        console.log("🔑 Using Groq Key (first 5):", GROQ_API_KEY?.substring(0, 5));
 
         try {
-            console.log("📡 Sending request to Gemini...");
-
-            // MODEL FIX: gemini-pro is deprecated; using gemini-2.0-flash (confirmed active)
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
+            console.log("⚡ Sending request to Groq (LLaMA-3)...");
+            const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Authorization': `Bearer ${GROQ_API_KEY}`,
+                    'Content-Type': 'application/json'
+                },
                 body: JSON.stringify({
-                    contents: [{ parts: [{ text: prompt }] }]
+                    model: "llama-3.1-8b-instant", // <-- THE NEW TURBO ENGINE
+                    messages: [
+                        {
+                            role: "system",
+                            content: `You are a strict transliteration engine. Transliterate the following ${lang} lyrics into English phonetics. Return ONLY the final transliterated text. Do not include quotes, markdown, greetings, or explanations.`
+                        },
+                        {
+                            role: "user",
+                            content: lyrics
+                        }
+                    ],
+                    temperature: 0.3,
                 })
             });
 
             if (!response.ok) {
                 const errorData = await response.json();
-                console.error("❌ Gemini API Error Status:", response.status, errorData);
+                console.error("❌ Groq API Error:", response.status, errorData);
                 return null;
             }
 
             const data = await response.json();
-            console.log("📦 Gemini Response Received:", JSON.stringify(data).substring(0, 200));
+            const result = data.choices[0].message.content.trim();
 
-            if (data.candidates && data.candidates[0].content && data.candidates[0].content.parts[0].text) {
-                const result = data.candidates[0].content.parts[0].text.trim();
-                console.log("✅ Transliteration successful (length):", result.length);
-                return result;
-            }
-            console.error("❌ Gemini response missing content:", data);
-            return null;
+            console.log("✅ Transliteration successful (length):", result.length);
+            return result;
+
         } catch (error) {
-            console.error("❌ Gemini Error:", error);
+            console.error("❌ Groq Error:", error);
             return null;
         }
     };
@@ -222,7 +227,6 @@ export default function UploadScreen({ navigation }) {
     );
 }
 
-// Ensure styles are OUTSIDE the main function!
 const styles = StyleSheet.create({
     container: { flex: 1 },
     header: { paddingTop: 60, paddingHorizontal: 20, paddingBottom: 20, borderBottomWidth: 1 },

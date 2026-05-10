@@ -28,13 +28,19 @@ export default function HomeScreen({ navigation }) {
                 setUserId(currentUserId);
 
                 // 2. FETCH ALL APPROVED SONGS
+                console.log("📡 Fetching approved songs for Home Screen...");
                 const { data: songsData, error: songsError } = await supabase
                     .from('songs')
                     .select('*')
                     .eq('status', 'approved')
                     .order('title', { ascending: true });
 
-                if (!songsError) setSongs(songsData);
+                if (songsError) {
+                    console.error("❌ Error fetching home songs:", songsError);
+                } else {
+                    console.log(`✅ Success! Found ${songsData?.length} approved songs.`);
+                    setSongs(songsData || []);
+                }
 
                 // 3. FETCH FAVORITES IF LOGGED IN
                 if (currentUserId) {
@@ -47,7 +53,7 @@ export default function HomeScreen({ navigation }) {
                         setFavorites(favData.map(f => f.song_id));
                     }
                 } else {
-                    setFavorites([]); // Clear hearts if logged out
+                    setFavorites([]);
                 }
 
                 setLoading(false);

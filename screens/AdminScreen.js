@@ -23,7 +23,6 @@ export default function AdminScreen({ navigation }) {
             .from('songs')
             .select('*')
             .eq('status', 'pending')
-            .order('created_at', { ascending: false });
 
         if (error) {
             console.error('Error fetching pending songs:', error);
