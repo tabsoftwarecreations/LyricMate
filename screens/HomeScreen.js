@@ -31,7 +31,7 @@ export default function HomeScreen({ navigation }) {
     const handleDownloadApp = () => {
         if (Platform.OS === 'web') {
             const link = document.createElement('a');
-            link.href = '/lyricmate.apk'; 
+            link.href = 'https://github.com/tabsoftwarecreations/LyricMate/releases/download/v1.0.0/lyricmate.apk';
             link.download = 'lyricmate.apk';
             document.body.appendChild(link);
             link.click();
@@ -203,14 +203,14 @@ export default function HomeScreen({ navigation }) {
                     <View style={[styles.popupBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
                         <Text style={[styles.popupTitle, { color: colors.text }]}>Sing Offline! 🎤</Text>
                         <Text style={[styles.popupText, { color: colors.secondaryText }]}>
-                            Download the native Android app for the best experience. 
+                            Download the native Android app for the best experience.
                             (Note: You may need to 'Allow installation from unknown sources' in your settings).
                         </Text>
-                        
+
                         <TouchableOpacity style={[styles.downloadBtn, { backgroundColor: colors.primary }]} onPress={handleDownloadApp}>
                             <Text style={styles.downloadBtnText}>Download APK</Text>
                         </TouchableOpacity>
-                        
+
                         <TouchableOpacity onPress={() => setShowAppPopup(false)} style={{ marginTop: 15 }}>
                             <Text style={{ color: colors.secondaryText, textAlign: 'center' }}>No thanks, I'll use the web</Text>
                         </TouchableOpacity>
@@ -240,7 +240,7 @@ const styles = StyleSheet.create({
     languageBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
     badgeText: { fontSize: 12, fontWeight: '700' },
     emptyText: { textAlign: 'center', marginTop: 40, fontSize: 16 },
-    
+
     // Web-to-App Popup Styles
     popupOverlay: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', zIndex: 1000 },
     popupBox: { width: '85%', padding: 25, borderRadius: 16, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 8 },
