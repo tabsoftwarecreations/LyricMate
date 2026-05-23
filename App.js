@@ -105,7 +105,7 @@ function AppNavigator() {
         >
             <Stack.Screen name="Splash" component={SplashScreen} options={{ headerShown: false }} />
             <Stack.Screen name="MainApp" component={MainTabNavigator} options={{ headerShown: false }} />
-            <Stack.Screen name="Lyrics" component={LyricScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="Lyrics" component={LyricScreen} options={{ title: '' }} />
             <Stack.Screen name="Language" component={LanguageScreen} options={({ route }) => ({ title: route.params.categoryName })} />
             <Stack.Screen name="Auth" component={AuthScreen} options={{ title: 'Login' }} />
             <Stack.Screen name="Admin" component={AdminScreen} options={{ title: 'Admin Portal' }} />

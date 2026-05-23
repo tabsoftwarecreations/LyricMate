@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, ScrollView, ActivityIndicator } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { supabase } from './supabase';
@@ -16,11 +16,16 @@ export default function UploadScreen({ navigation }) {
     const [loading, setLoading] = useState(false);
     const [isAuthenticated, setIsAuthenticated] = useState(false);
 
+    // FIX 2: Create a reference for the ScrollView
+    const scrollViewRef = useRef(null);
+
     // ==========================================
     // THE UPLOAD GATEKEEPER
     // ==========================================
     useFocusEffect(
         useCallback(() => {
+            // FIX 2: Snap to top immediately when the tab is opened
+            scrollViewRef.current?.scrollTo({ y: 0, animated: false });
             checkAuth();
         }, [])
     );
@@ -36,12 +41,15 @@ export default function UploadScreen({ navigation }) {
         }
     };
 
-    const generateTransliteration = async (lyrics, lang) => {
+    // ==========================================
+    // THE UPGRADED AI TRANSLITERATOR
+    // ==========================================
+    const generateTransliteration = async (lyricsText, songCategory) => {
         const GROQ_API_KEY = process.env.EXPO_PUBLIC_GROQ_API_KEY;
         console.log("🔑 Using Groq Key (first 5):", GROQ_API_KEY?.substring(0, 5));
 
         try {
-            console.log("⚡ Sending request to Groq (LLaMA-3)...");
+            console.log("⚡ Sending request to Groq (LLaMA-3 70B) for 3-way transliteration...");
             const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
                 method: 'POST',
                 headers: {
@@ -49,18 +57,28 @@ export default function UploadScreen({ navigation }) {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    model: "llama-3.1-8b-instant", // <-- THE NEW TURBO ENGINE
+                    model: "llama-3.3-70b-versatile",
+                    response_format: { type: "json_object" },
                     messages: [
                         {
                             role: "system",
-                            content: `You are a strict transliteration engine. Transliterate the following ${lang} lyrics into English phonetics. Return ONLY the final transliterated text. Do not include quotes, markdown, greetings, or explanations.`
+                            content: `You are a STRICT PHONETIC TRANSLITERATOR. 
+                            
+                            RULE 1: DO NOT translate the meaning of the words. 
+                            RULE 2: CRITICAL - You MUST preserve all line breaks exactly as they appear. You MUST use the explicit newline character (\\n) inside your JSON strings to represent every single line break. DO NOT merge lines into a single sentence.
+                            RULE 3: You MUST map the exact phonetic sounds of the provided lyrics into three specific scripts.
+                            
+                            Return ONLY a valid JSON object with exactly these three keys: 
+                            "English" (The lyrics written phonetically in the Latin/English alphabet), 
+                            "Malayalam" (The exact same sounds written in the native Malayalam script), 
+                            "Kannada" (The exact same sounds written in the native Kannada script).`
                         },
                         {
                             role: "user",
-                            content: lyrics
+                            content: `Song Category: ${songCategory}\n\nLyrics to phonetically transliterate:\n${lyricsText}`
                         }
                     ],
-                    temperature: 0.3,
+                    temperature: 0.1,
                 })
             });
 
@@ -71,13 +89,15 @@ export default function UploadScreen({ navigation }) {
             }
 
             const data = await response.json();
-            const result = data.choices[0].message.content.trim();
+            const resultString = data.choices[0].message.content.trim();
 
-            console.log("✅ Transliteration successful (length):", result.length);
-            return result;
+            const jsonObject = JSON.parse(resultString);
+
+            console.log("✅ Transliteration JSON generated successfully with keys:", Object.keys(jsonObject));
+            return jsonObject;
 
         } catch (error) {
-            console.error("❌ Groq Error:", error);
+            console.error("❌ Groq/Parsing Error:", error);
             return null;
         }
     };
@@ -101,6 +121,7 @@ export default function UploadScreen({ navigation }) {
 
         try {
             console.log("🤖 Generating AI Transliteration...");
+            // Grab the fully formatted JSON object from our new function
             const transliterations = await generateTransliteration(lyrics, category);
 
             console.log("💾 Saving to database...");
@@ -113,7 +134,7 @@ export default function UploadScreen({ navigation }) {
                     category,
                     status: 'pending',
                     user_id: user.id,
-                    transliterations
+                    transliterations // Supabase seamlessly accepts this JS Object into the jsonb column
                 }]);
 
             if (dbError) throw dbError;
@@ -155,8 +176,9 @@ export default function UploadScreen({ navigation }) {
     }
 
     // --- MAIN RENDER ---
+    // FIX: Moved the comment OUTSIDE the return statement to fix the Syntax Error
     return (
-        <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
+        <ScrollView ref={scrollViewRef} style={[styles.container, { backgroundColor: colors.background }]}>
             <StatusBar style={theme === 'dark' ? "light" : "dark"} />
             <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
                 <Text style={[styles.headerTitle, { color: colors.primary }]}>Upload Lyrics</Text>

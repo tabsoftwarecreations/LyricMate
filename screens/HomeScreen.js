@@ -13,16 +13,12 @@ export default function HomeScreen({ navigation }) {
     const [favorites, setFavorites] = useState([]);
     const [loading, setLoading] = useState(true);
     const [userId, setUserId] = useState(null);
-    const [showAppPopup, setShowAppPopup] = useState(false); // <-- Web-to-App Popup State
+    const [showAppPopup, setShowAppPopup] = useState(false);
 
-    // ==========================================
-    // WEB-TO-APP FUNNEL LOGIC
-    // ==========================================
     useEffect(() => {
         if (Platform.OS === 'web') {
             const isAndroid = /android/i.test(navigator.userAgent);
             if (isAndroid) {
-                // Trigger the popup after 2.5 seconds
                 setTimeout(() => setShowAppPopup(true), 2500);
             }
         }
@@ -40,44 +36,30 @@ export default function HomeScreen({ navigation }) {
         setShowAppPopup(false);
     };
 
-    // ==========================================
-    // REFRESH DATA ON EVERY SCREEN FOCUS
-    // ==========================================
     useFocusEffect(
         useCallback(() => {
             const fetchAllData = async () => {
                 setLoading(true);
 
-                // 1. FRESH AUTH CHECK
                 const { data: { user } } = await supabase.auth.getUser();
                 const currentUserId = user ? user.id : null;
                 setUserId(currentUserId);
 
-                // 2. FETCH ALL APPROVED SONGS
-                console.log("📡 Fetching approved songs for Home Screen...");
                 const { data: songsData, error: songsError } = await supabase
                     .from('songs')
                     .select('*')
                     .eq('status', 'approved')
                     .order('title', { ascending: true });
 
-                if (songsError) {
-                    console.error("❌ Error fetching home songs:", songsError);
-                } else {
-                    console.log(`✅ Success! Found ${songsData?.length} approved songs.`);
-                    setSongs(songsData || []);
-                }
+                if (!songsError) setSongs(songsData || []);
 
-                // 3. FETCH FAVORITES IF LOGGED IN
                 if (currentUserId) {
                     const { data: favData, error: favError } = await supabase
                         .from('favorites')
                         .select('song_id')
                         .eq('user_id', currentUserId);
 
-                    if (!favError) {
-                        setFavorites(favData.map(f => f.song_id));
-                    }
+                    if (!favError) setFavorites(favData.map(f => f.song_id));
                 } else {
                     setFavorites([]);
                 }
@@ -97,23 +79,11 @@ export default function HomeScreen({ navigation }) {
 
         const isFav = favorites.includes(songId);
         if (isFav) {
-            const { error } = await supabase
-                .from('favorites')
-                .delete()
-                .eq('user_id', userId)
-                .eq('song_id', songId);
-
-            if (!error) {
-                setFavorites(favorites.filter(id => id !== songId));
-            }
+            const { error } = await supabase.from('favorites').delete().eq('user_id', userId).eq('song_id', songId);
+            if (!error) setFavorites(favorites.filter(id => id !== songId));
         } else {
-            const { error } = await supabase
-                .from('favorites')
-                .insert([{ user_id: userId, song_id: songId }]);
-
-            if (!error) {
-                setFavorites([...favorites, songId]);
-            }
+            const { error } = await supabase.from('favorites').insert([{ user_id: userId, song_id: songId }]);
+            if (!error) setFavorites([...favorites, songId]);
         }
     };
 
@@ -136,11 +106,7 @@ export default function HomeScreen({ navigation }) {
                     </View>
                     <View style={styles.cardActions}>
                         <TouchableOpacity onPress={() => toggleFavorite(item.id)} style={styles.heartButton}>
-                            <Ionicons
-                                name={isFavorite ? "heart" : "heart-outline"}
-                                size={24}
-                                color={isFavorite ? "#EF4444" : colors.secondaryText}
-                            />
+                            <Ionicons name={isFavorite ? "heart" : "heart-outline"} size={24} color={isFavorite ? "#EF4444" : colors.secondaryText} />
                         </TouchableOpacity>
                         <View style={[styles.languageBadge, { backgroundColor: theme === 'dark' ? '#065F46' : '#DCFCE7' }]}>
                             <Text style={[styles.badgeText, { color: theme === 'dark' ? '#A7F3D0' : '#166534' }]}>{item.category}</Text>
@@ -154,7 +120,7 @@ export default function HomeScreen({ navigation }) {
     const handleSearch = (text) => {
         setSearchQuery(text);
         if (text.toLowerCase() === '/admin') {
-            setSearchQuery(''); // Clear the bar
+            setSearchQuery('');
             navigation.navigate('Admin');
         }
     };
@@ -191,26 +157,18 @@ export default function HomeScreen({ navigation }) {
                     renderItem={renderSong}
                     contentContainerStyle={styles.listContainer}
                     showsVerticalScrollIndicator={false}
-                    ListEmptyComponent={
-                        <Text style={[styles.emptyText, { color: colors.secondaryText }]}>No songs found. Head to the Upload tab to add some!</Text>
-                    }
+                    ListEmptyComponent={<Text style={[styles.emptyText, { color: colors.secondaryText }]}>No songs found.</Text>}
                 />
             )}
 
-            {/* --- WEB-TO-APP FUNNEL POPUP --- */}
             {showAppPopup && (
                 <View style={styles.popupOverlay}>
                     <View style={[styles.popupBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
                         <Text style={[styles.popupTitle, { color: colors.text }]}>Sing Offline! 🎤</Text>
-                        <Text style={[styles.popupText, { color: colors.secondaryText }]}>
-                            Download the native Android app for the best experience.
-                            (Note: You may need to 'Allow installation from unknown sources' in your settings).
-                        </Text>
-
+                        <Text style={[styles.popupText, { color: colors.secondaryText }]}>Download the native Android app for the best experience.</Text>
                         <TouchableOpacity style={[styles.downloadBtn, { backgroundColor: colors.primary }]} onPress={handleDownloadApp}>
                             <Text style={styles.downloadBtnText}>Download APK</Text>
                         </TouchableOpacity>
-
                         <TouchableOpacity onPress={() => setShowAppPopup(false)} style={{ marginTop: 15 }}>
                             <Text style={{ color: colors.secondaryText, textAlign: 'center' }}>No thanks, I'll use the web</Text>
                         </TouchableOpacity>
@@ -240,8 +198,6 @@ const styles = StyleSheet.create({
     languageBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
     badgeText: { fontSize: 12, fontWeight: '700' },
     emptyText: { textAlign: 'center', marginTop: 40, fontSize: 16 },
-
-    // Web-to-App Popup Styles
     popupOverlay: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', zIndex: 1000 },
     popupBox: { width: '85%', padding: 25, borderRadius: 16, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 8 },
     popupTitle: { fontSize: 22, fontWeight: 'bold', marginBottom: 10, textAlign: 'center' },
