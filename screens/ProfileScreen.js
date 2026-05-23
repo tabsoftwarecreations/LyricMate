@@ -17,7 +17,11 @@ export default function ProfileScreen({ navigation }) {
                 setUser(user);
                 fetchContributions(user.id);
             } else {
-                navigation.replace('Auth');
+                // Reset so back from Auth always goes to Home, not Profile
+                navigation.reset({
+                    index: 1,
+                    routes: [{ name: 'MainApp' }, { name: 'Auth' }],
+                });
             }
         };
         getUser();
@@ -43,7 +47,11 @@ export default function ProfileScreen({ navigation }) {
         if (error) {
             Alert.alert('Error', error.message);
         } else {
-            navigation.replace('Auth');
+            // Reset so back from Auth always goes to Home, not Profile
+            navigation.reset({
+                index: 1,
+                routes: [{ name: 'MainApp' }, { name: 'Auth' }],
+            });
         }
     };
 
