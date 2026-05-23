@@ -69,7 +69,7 @@ export default function UploadScreen({ navigation }) {
                             RULE 3: You MUST map the exact phonetic sounds of the provided lyrics into three specific scripts.
                             
                             Return ONLY a valid JSON object with exactly these three keys: 
-                            "English" (The lyrics written phonetically in the Latin/English alphabet), 
+                            "English" (The lyrics exactly as provided, using the standard English alphabet without any special accents or phonetic symbols), 
                             "Malayalam" (The exact same sounds written in the native Malayalam script), 
                             "Kannada" (The exact same sounds written in the native Kannada script).`
                         },

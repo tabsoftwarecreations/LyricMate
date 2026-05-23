@@ -70,6 +70,13 @@ export default function AdminScreen({ navigation }) {
                     text: "Reject & Delete",
                     style: "destructive",
                     onPress: async () => {
+                        // Delete favorites first to avoid foreign key constraints
+                        await supabase
+                            .from('favorites')
+                            .delete()
+                            .eq('song_id', songId);
+
+                        // Then delete the song
                         const { error } = await supabase
                             .from('songs')
                             .delete()

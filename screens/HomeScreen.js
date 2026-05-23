@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { StyleSheet, Text, View, FlatList, TouchableOpacity, TextInput, ActivityIndicator, Platform } from 'react-native';
+import { StyleSheet, Text, View, FlatList, TouchableOpacity, TextInput, ActivityIndicator, Platform, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from './supabase';
 import { useFocusEffect } from '@react-navigation/native';
@@ -36,40 +36,49 @@ export default function HomeScreen({ navigation }) {
         setShowAppPopup(false);
     };
 
+    const [refreshing, setRefreshing] = useState(false);
+
+    const fetchAllData = useCallback(async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        const currentUserId = user ? user.id : null;
+        setUserId(currentUserId);
+
+        const { data: songsData, error: songsError } = await supabase
+            .from('songs')
+            .select('*')
+            .eq('status', 'approved')
+            .order('title', { ascending: true });
+
+        if (!songsError) setSongs(songsData || []);
+
+        if (currentUserId) {
+            const { data: favData, error: favError } = await supabase
+                .from('favorites')
+                .select('song_id')
+                .eq('user_id', currentUserId);
+
+            if (!favError) setFavorites(favData.map(f => f.song_id));
+        } else {
+            setFavorites([]);
+        }
+    }, []);
+
     useFocusEffect(
         useCallback(() => {
-            const fetchAllData = async () => {
+            const loadInitialData = async () => {
                 setLoading(true);
-
-                const { data: { user } } = await supabase.auth.getUser();
-                const currentUserId = user ? user.id : null;
-                setUserId(currentUserId);
-
-                const { data: songsData, error: songsError } = await supabase
-                    .from('songs')
-                    .select('*')
-                    .eq('status', 'approved')
-                    .order('title', { ascending: true });
-
-                if (!songsError) setSongs(songsData || []);
-
-                if (currentUserId) {
-                    const { data: favData, error: favError } = await supabase
-                        .from('favorites')
-                        .select('song_id')
-                        .eq('user_id', currentUserId);
-
-                    if (!favError) setFavorites(favData.map(f => f.song_id));
-                } else {
-                    setFavorites([]);
-                }
-
+                await fetchAllData();
                 setLoading(false);
             };
-
-            fetchAllData();
-        }, [])
+            loadInitialData();
+        }, [fetchAllData])
     );
+
+    const onRefresh = useCallback(async () => {
+        setRefreshing(true);
+        await fetchAllData();
+        setRefreshing(false);
+    }, [fetchAllData]);
 
     const toggleFavorite = async (songId) => {
         if (!userId) {
@@ -157,6 +166,14 @@ export default function HomeScreen({ navigation }) {
                     renderItem={renderSong}
                     contentContainerStyle={styles.listContainer}
                     showsVerticalScrollIndicator={false}
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={refreshing}
+                            onRefresh={onRefresh}
+                            colors={[colors.primary]} // Android
+                            tintColor={colors.primary} // iOS
+                        />
+                    }
                     ListEmptyComponent={<Text style={[styles.emptyText, { color: colors.secondaryText }]}>No songs found.</Text>}
                 />
             )}
