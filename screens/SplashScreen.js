@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 
 export default function SplashScreen({ navigation }) {
-    // Built-in React Native animation values (100% stable)
+    // Built-in React Native animation values
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const scaleAnim = useRef(new Animated.Value(0.5)).current;
 
@@ -33,16 +33,17 @@ export default function SplashScreen({ navigation }) {
 
     return (
         <View style={styles.container}>
-            <StatusBar style="light" />
+            <StatusBar style="dark" />
 
             <Animated.View style={[styles.content, { opacity: fadeAnim, transform: [{ scale: scaleAnim }] }]}>
-                <Ionicons name="musical-notes" size={100} color="#FFFFFF" />
+                {/* Changed to your new primary Blue */}
+                <Ionicons name="musical-notes" size={100} color="#007AFF" />
                 <Text style={styles.logoText}>LyricMate</Text>
                 <View style={styles.underline} />
             </Animated.View>
 
             <View style={styles.footer}>
-                <Text style={styles.footerText}>COLLECTIONS OF ISLAMIC MADH</Text>
+                <Text style={styles.footerText}>COLLECTION OF ISLAMIC SONGS</Text>
             </View>
         </View>
     );
@@ -51,7 +52,7 @@ export default function SplashScreen({ navigation }) {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#166534',
+        backgroundColor: '#FFFFFF', // Changed to match your new white splash-icon
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -61,14 +62,14 @@ const styles = StyleSheet.create({
     logoText: {
         fontSize: 48,
         fontWeight: '900',
-        color: '#FFFFFF',
+        color: '#0F172A', // Deep Navy blue for high contrast
         letterSpacing: 2,
         marginTop: 20,
     },
     underline: {
         width: 150,
         height: 4,
-        backgroundColor: '#F59E0B',
+        backgroundColor: '#00D4FF', // Electric Cyan accent instead of orange
         marginTop: 10,
         borderRadius: 2,
     },
@@ -77,7 +78,7 @@ const styles = StyleSheet.create({
         bottom: 50,
     },
     footerText: {
-        color: 'rgba(255,255,255,0.6)',
+        color: '#64748B', // Muted grey-blue
         fontSize: 12,
         fontWeight: 'bold',
         letterSpacing: 3,

@@ -168,7 +168,7 @@ export default function HomeScreen({ navigation }) {
                     <Ionicons name="musical-notes" size={32} color={colors.primary} />
                     <Text style={[styles.headerTitle, { color: colors.primary }]}>LyricMate</Text>
                 </View>
-                <Text style={[styles.headerSubtitle, { color: colors.secondaryText }]}>Master Song Collection</Text>
+                <Text style={[styles.headerSubtitle, { color: colors.secondaryText }]}>Collection of Islamic Songs</Text>
             </View>
 
             <View style={[styles.searchContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>

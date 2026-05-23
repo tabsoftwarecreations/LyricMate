@@ -4,23 +4,25 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // Create the Context
 const ThemeContext = createContext();
 
-// Define our Color Palettes
+// ==========================================
+// NEW BRANDING: THE BLUE HARMONY PALETTE
+// ==========================================
 const lightColors = {
-    background: '#F0FDF4', // Light Green background
-    card: '#FFFFFF',
-    text: '#064E3B', // Dark Green text
-    primary: '#166534',
-    secondaryText: '#4B5563',
-    border: '#E5E7EB',
+    background: '#FFFFFF',     // Clean White
+    card: '#F8FAFC',           // Subtle off-white for cards
+    text: '#0F172A',           // Deep Navy
+    primary: '#007AFF',        // Classic vibrant tech blue
+    secondaryText: '#64748B',  // Muted grey-blue
+    border: '#E2E8F0',         // Light grey
 };
 
 const darkColors = {
-    background: '#022C22', // Very Dark Green background
-    card: '#064E3B',
-    text: '#ECFDF5', // Light text
-    primary: '#10B981', // Bright Green accent
-    secondaryText: '#A7F3D0',
-    border: '#065F46',
+    background: '#040814',     // Deep Midnight Navy
+    card: '#0B1120',           // Slightly lighter navy for cards
+    text: '#F8FAFC',           // Crisp White
+    primary: '#00D4FF',        // Electric Cyan
+    secondaryText: '#94A3B8',  // Soft slate grey
+    border: '#1E293B',         // Darker navy border
 };
 
 export const ThemeProvider = ({ children }) => {

@@ -2,7 +2,6 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from './supabase';
-import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../context/ThemeContext';
 
 export default function ProfileScreen({ navigation }) {
@@ -23,14 +22,6 @@ export default function ProfileScreen({ navigation }) {
         };
         getUser();
     }, []);
-
-    useFocusEffect(
-        useCallback(() => {
-            if (user) {
-                fetchContributions(user.id);
-            }
-        }, [user])
-    );
 
     const fetchContributions = async (userId) => {
         const { count, error } = await supabase

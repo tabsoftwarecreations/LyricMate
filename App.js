@@ -30,6 +30,7 @@ function MainTabNavigator() {
 
     return (
         <Tab.Navigator
+        backBehavior="initialRoute"
             screenOptions={({ route }) => ({
                 headerShown: true,
                 headerStyle: { backgroundColor: colors.background },

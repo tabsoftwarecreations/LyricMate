@@ -22,8 +22,6 @@ export default function AuthScreen({ navigation }) {
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [isSignUp, setIsSignUp] = useState(false);
-
-    // NEW: State to toggle password visibility
     const [showPassword, setShowPassword] = useState(false);
 
     const handleAuthentication = async () => {
@@ -52,14 +50,12 @@ export default function AuthScreen({ navigation }) {
         setLoading(false);
     };
 
-    // --- EMERGENCY RESET ---
     const handleEmergencyClear = async () => {
         setLoading(true);
         setEmail('');
         setPassword('');
         setIsSignUp(false);
 
-        // This forces Supabase to kill any corrupted ghost sessions
         await supabase.auth.signOut();
 
         setLoading(false);
@@ -68,13 +64,11 @@ export default function AuthScreen({ navigation }) {
 
     return (
         <KeyboardAvoidingView
-            // FIX: Only apply keyboard behavior on mobile platforms. Ignore on web.
             behavior={Platform.OS === 'ios' ? 'padding' : Platform.OS === 'android' ? 'height' : undefined}
             style={[styles.container, { backgroundColor: colors.background }]}
         >
             <StatusBar style={theme === 'dark' ? "light" : "dark"} />
 
-            {/* FIX: ScrollView ensures content never collapses on Web */}
             <ScrollView
                 contentContainerStyle={styles.scrollContainer}
                 keyboardShouldPersistTaps="handled"
@@ -110,10 +104,8 @@ export default function AuthScreen({ navigation }) {
                             placeholderTextColor={colors.secondaryText}
                             value={password}
                             onChangeText={setPassword}
-                            // NEW: Toggles based on the state
                             secureTextEntry={!showPassword}
                         />
-                        {/* NEW: The Eye Icon Toggle Button */}
                         <TouchableOpacity
                             onPress={() => setShowPassword(!showPassword)}
                             style={styles.eyeIcon}
@@ -135,7 +127,6 @@ export default function AuthScreen({ navigation }) {
                     </TouchableOpacity>
 
                     <TouchableOpacity style={styles.toggleContainer} onPress={() => setIsSignUp(!isSignUp)}>
-                        {/* EMERGENCY RESET BUTTON */}
                         <TouchableOpacity
                             style={{ marginTop: 40, alignItems: 'center' }}
                             onPress={handleEmergencyClear}
