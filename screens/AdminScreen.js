@@ -1,129 +1,104 @@
 import React, { useState, useCallback } from 'react';
-import { StyleSheet, Text, View, FlatList, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import {
+    StyleSheet, Text, View, FlatList, TouchableOpacity,
+    ActivityIndicator, Alert
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from './supabase';
+import { supabase, safeFetchPendingSongs, safeUpdateSongStatus, safeDeleteSong } from './supabase';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../context/ThemeContext';
+import { StatusBar } from 'expo-status-bar';
 
 export default function AdminScreen({ navigation }) {
     const { colors, theme } = useTheme();
     const [pendingSongs, setPendingSongs] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    // Fetch pending songs every time the admin opens the screen
     useFocusEffect(
-        useCallback(() => {
-            fetchPendingSongs();
-        }, [])
+        useCallback(() => { fetchPendingSongs(); }, [])
     );
 
     const fetchPendingSongs = async () => {
         setLoading(true);
-        const { data, error } = await supabase
-            .from('songs')
-            .select('*')
-            .eq('status', 'pending')
-
-        if (error) {
-            console.error('Error fetching pending songs:', error);
-            Alert.alert('Error', 'Could not load pending songs.');
-        } else {
-            setPendingSongs(data || []);
+        const { data, error } = await safeFetchPendingSongs(3);
+        if (error) { 
+            console.error('Error fetching pending songs:', error); 
+            Alert.alert('Error', 'Could not load pending songs.'); 
+        } else { 
+            setPendingSongs(data || []); 
         }
         setLoading(false);
     };
 
     const handleApprove = async (songId, title) => {
-        Alert.alert(
-            "Approve Song",
-            `Are you sure you want to approve "${title}"? It will go live immediately.`,
-            [
-                { text: "Cancel", style: "cancel" },
-                {
-                    text: "Approve",
-                    style: "default",
-                    onPress: async () => {
-                        const { error } = await supabase
-                            .from('songs')
-                            .update({ status: 'approved' })
-                            .eq('id', songId);
-
-                        if (error) {
-                            Alert.alert('Error', 'Failed to approve song.');
-                        } else {
-                            // Remove it from the local list instantly
-                            setPendingSongs(pendingSongs.filter(song => song.id !== songId));
-                        }
-                    }
+        Alert.alert("Approve Song", `Are you sure you want to approve "${title}"? It will go live immediately.`, [
+            { text: "Cancel", style: "cancel" },
+            {
+                text: "Approve", style: "default",
+                onPress: async () => {
+                    const { error } = await safeUpdateSongStatus(songId, 'approved');
+                    if (error) Alert.alert('Error', 'Failed to approve song.');
+                    else setPendingSongs(pendingSongs.filter(s => s.id !== songId));
                 }
-            ]
-        );
+            }
+        ]);
     };
 
     const handleReject = async (songId, title) => {
-        Alert.alert(
-            "Reject Song",
-            `Are you sure you want to delete "${title}" permanently?`,
-            [
-                { text: "Cancel", style: "cancel" },
-                {
-                    text: "Reject & Delete",
-                    style: "destructive",
-                    onPress: async () => {
-                        // Delete favorites first to avoid foreign key constraints
-                        await supabase
-                            .from('favorites')
-                            .delete()
-                            .eq('song_id', songId);
-
-                        // Then delete the song
-                        const { error } = await supabase
-                            .from('songs')
-                            .delete()
-                            .eq('id', songId);
-
-                        if (error) {
-                            Alert.alert('Error', 'Failed to delete song.');
-                        } else {
-                            setPendingSongs(pendingSongs.filter(song => song.id !== songId));
-                        }
-                    }
+        Alert.alert("Reject Song", `Are you sure you want to delete "${title}" permanently?`, [
+            { text: "Cancel", style: "cancel" },
+            {
+                text: "Reject & Delete", style: "destructive",
+                onPress: async () => {
+                    const { error } = await safeDeleteSong(songId);
+                    if (error) Alert.alert('Error', 'Failed to delete song.');
+                    else setPendingSongs(pendingSongs.filter(s => s.id !== songId));
                 }
-            ]
-        );
+            }
+        ]);
     };
 
     const renderPendingSong = ({ item }) => (
-        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
+            {/* Card header */}
             <View style={styles.cardHeader}>
+                <View style={[styles.cardIconWrap, { backgroundColor: colors.primarySoft }]}>
+                    <Ionicons name="musical-notes-outline" size={18} color={colors.primary} />
+                </View>
                 <View style={{ flex: 1 }}>
-                    <Text style={[styles.title, { color: colors.text }]}>{item.title}</Text>
-                    <Text style={[styles.artist, { color: colors.secondaryText }]}>{item.artist}</Text>
-                    <View style={styles.categoryBadge}>
-                        <Text style={styles.categoryText}>{item.category}</Text>
-                    </View>
+                    <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>{item.title}</Text>
+                    <Text style={[styles.artist, { color: colors.secondaryText }]} numberOfLines={1}>{item.artist}</Text>
+                </View>
+                <View style={[styles.categoryBadge, { backgroundColor: colors.badge, borderColor: colors.borderSubtle }]}>
+                    <Text style={[styles.categoryText, { color: colors.primary }]}>{item.category}</Text>
                 </View>
             </View>
 
-            <Text style={[styles.lyricsPreview, { color: colors.secondaryText }]} numberOfLines={3}>
-                {item.lyrics}
-            </Text>
+            {/* Lyrics preview */}
+            <View style={[styles.lyricsBox, { backgroundColor: colors.innerBorder, borderColor: colors.innerBorder }]}>
+                <Text style={[styles.lyricsPreview, { color: colors.secondaryText }]} numberOfLines={3}>
+                    {item.lyrics}
+                </Text>
+            </View>
 
+            {/* Action buttons */}
             <View style={styles.buttonRow}>
                 <TouchableOpacity
-                    style={[styles.actionButton, styles.rejectButton]}
+                    style={[styles.actionButton, styles.rejectButton, { borderColor: 'rgba(251,113,133,0.30)', backgroundColor: 'rgba(251,113,133,0.07)' }]}
                     onPress={() => handleReject(item.id, item.title)}
+                    activeOpacity={0.7}
                 >
-                    <Ionicons name="trash-outline" size={20} color="#EF4444" />
-                    <Text style={[styles.buttonText, { color: '#EF4444' }]}>Reject</Text>
+                    <Ionicons name="trash-outline" size={17} color={colors.danger} />
+                    <Text style={[styles.buttonText, { color: colors.danger }]}>Reject</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                    style={[styles.actionButton, styles.approveButton]}
+                    style={[styles.actionButton, { borderColor: 'rgba(52,211,153,0.30)', backgroundColor: 'rgba(52,211,153,0.07)' }]}
                     onPress={() => handleApprove(item.id, item.title)}
+                    activeOpacity={0.7}
                 >
-                    <Ionicons name="checkmark-circle-outline" size={20} color="#10B981" />
-                    <Text style={[styles.buttonText, { color: '#10B981' }]}>Approve</Text>
+                    <Ionicons name="checkmark-circle-outline" size={17} color={colors.success} />
+                    <Text style={[styles.buttonText, { color: colors.success }]}>Approve</Text>
                 </TouchableOpacity>
             </View>
         </View>
@@ -131,15 +106,27 @@ export default function AdminScreen({ navigation }) {
 
     return (
         <View style={[styles.container, { backgroundColor: colors.background }]}>
-            <View style={[styles.header, { borderBottomColor: colors.border }]}>
-                <Text style={[styles.headerTitle, { color: colors.primary }]}>Admin Dashboard</Text>
-                <Text style={[styles.headerSubtitle, { color: colors.secondaryText }]}>
-                    Review user submissions
-                </Text>
+            <StatusBar style={theme === 'dark' ? "light" : "dark"} />
+
+            {/* Ambient blob */}
+            <View style={[styles.blob, { backgroundColor: colors.blobA }]} />
+
+            {/* Header */}
+            <View style={[styles.header, { borderBottomColor: colors.innerBorder }]}>
+                <Text style={[styles.headerEyebrow, { color: colors.secondaryText }]}>ADMIN</Text>
+                <View style={styles.headerRow}>
+                    <Text style={[styles.headerTitle, { color: colors.text }]}>Review Queue</Text>
+                    {pendingSongs.length > 0 && (
+                        <View style={[styles.pendingBadge, { backgroundColor: colors.warning + '22', borderColor: colors.warning + '44' }]}>
+                            <Text style={[styles.pendingBadgeText, { color: colors.warning }]}>{pendingSongs.length} pending</Text>
+                        </View>
+                    )}
+                </View>
+                <Text style={[styles.headerSub, { color: colors.secondaryText }]}>Review and approve user submissions</Text>
             </View>
 
             {loading ? (
-                <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 40 }} />
+                <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 60 }} />
             ) : (
                 <FlatList
                     data={pendingSongs}
@@ -149,9 +136,12 @@ export default function AdminScreen({ navigation }) {
                     showsVerticalScrollIndicator={false}
                     ListEmptyComponent={
                         <View style={styles.emptyContainer}>
-                            <Ionicons name="checkmark-done-circle-outline" size={64} color={colors.border} />
+                            <View style={[styles.emptyIconWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                                <Ionicons name="checkmark-done-circle-outline" size={40} color={colors.success} />
+                            </View>
+                            <Text style={[styles.emptyTitle, { color: colors.text }]}>All Clear!</Text>
                             <Text style={[styles.emptyText, { color: colors.secondaryText }]}>
-                                You are all caught up! No pending songs to review.
+                                No pending songs to review. You're all caught up.
                             </Text>
                         </View>
                     }
@@ -163,22 +153,56 @@ export default function AdminScreen({ navigation }) {
 
 const styles = StyleSheet.create({
     container: { flex: 1 },
-    header: { padding: 20, paddingTop: 20, borderBottomWidth: 1 },
-    headerTitle: { fontSize: 24, fontWeight: 'bold' },
-    headerSubtitle: { fontSize: 16, marginTop: 4 },
-    listContainer: { padding: 20, paddingBottom: 50 },
-    card: { padding: 16, borderRadius: 12, borderWidth: 1, marginBottom: 15 },
-    cardHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
-    title: { fontSize: 18, fontWeight: 'bold' },
-    artist: { fontSize: 14, marginTop: 2, marginBottom: 8 },
-    categoryBadge: { alignSelf: 'flex-start', backgroundColor: '#E0E7FF', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-    categoryText: { fontSize: 12, color: '#4338CA', fontWeight: 'bold' },
-    lyricsPreview: { fontSize: 14, fontStyle: 'italic', marginBottom: 15, lineHeight: 20 },
-    buttonRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
-    actionButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 8, borderWidth: 1, marginHorizontal: 5 },
-    rejectButton: { borderColor: '#FECACA', backgroundColor: '#FEF2F2' },
-    approveButton: { borderColor: '#A7F3D0', backgroundColor: '#ECFDF5' },
-    buttonText: { fontWeight: 'bold', marginLeft: 8 },
-    emptyContainer: { alignItems: 'center', marginTop: 100 },
-    emptyText: { textAlign: 'center', marginTop: 20, fontSize: 16, paddingHorizontal: 40 }
+
+    blob: {
+        position: 'absolute', width: 260, height: 260, borderRadius: 130,
+        top: -60, right: -80, opacity: 0.40,
+    },
+
+    header: { paddingTop: 22, paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 0.5 },
+    headerEyebrow: { fontSize: 11, fontWeight: '700', letterSpacing: 1.2, marginBottom: 4 },
+    headerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4 },
+    headerTitle: { fontSize: 26, fontWeight: '800', letterSpacing: -0.5 },
+    pendingBadge: {
+        paddingHorizontal: 10, paddingVertical: 4,
+        borderRadius: 12, borderWidth: 1,
+    },
+    pendingBadgeText: { fontSize: 12, fontWeight: '700' },
+    headerSub: { fontSize: 13 },
+
+    listContainer: { padding: 18, paddingBottom: 60 },
+
+    // Card
+    card: {
+        borderRadius: 22, borderWidth: 1, padding: 16, marginBottom: 14,
+        shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.10, shadowRadius: 18, elevation: 6,
+    },
+    cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
+    cardIconWrap: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+    title: { fontSize: 16, fontWeight: '700', letterSpacing: -0.2 },
+    artist: { fontSize: 13, marginTop: 2 },
+    categoryBadge: {
+        paddingHorizontal: 10, paddingVertical: 4,
+        borderRadius: 10, borderWidth: 1,
+    },
+    categoryText: { fontSize: 11, fontWeight: '700' },
+
+    lyricsBox: {
+        borderRadius: 12, padding: 12, marginBottom: 14,
+    },
+    lyricsPreview: { fontSize: 13, fontStyle: 'italic', lineHeight: 19 },
+
+    buttonRow: { flexDirection: 'row', gap: 10 },
+    actionButton: {
+        flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+        paddingVertical: 12, borderRadius: 13, borderWidth: 1, gap: 7,
+    },
+    rejectButton: {},
+    buttonText: { fontWeight: '700', fontSize: 14 },
+
+    // Empty
+    emptyContainer: { alignItems: 'center', marginTop: 90, paddingHorizontal: 40 },
+    emptyIconWrap: { width: 80, height: 80, borderRadius: 24, justifyContent: 'center', alignItems: 'center', marginBottom: 18, borderWidth: 1 },
+    emptyTitle: { fontSize: 20, fontWeight: '700', marginBottom: 8 },
+    emptyText: { textAlign: 'center', fontSize: 15, lineHeight: 22 },
 });

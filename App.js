@@ -32,19 +32,18 @@ function MainTabNavigator() {
         <Tab.Navigator
         backBehavior="initialRoute"
             screenOptions={({ route }) => ({
-                headerShown: true,
-                headerStyle: { backgroundColor: colors.background },
-                headerTintColor: colors.primary,
-                headerTitleStyle: { fontWeight: 'bold' },
+                headerShown: false,
                 tabBarActiveTintColor: colors.primary,
-                tabBarInactiveTintColor: 'gray',
+                tabBarInactiveTintColor: colors.secondaryText,
                 tabBarStyle: {
-                    paddingBottom: 5,
-                    paddingTop: 5,
-                    height: 60,
-                    backgroundColor: colors.background,
-                    borderTopColor: colors.border
+                    paddingBottom: 8,
+                    paddingTop: 8,
+                    height: 68,
+                    backgroundColor: colors.card,
+                    borderTopColor: colors.border,
+                    borderTopWidth: 0.5,
                 },
+                tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
                 tabBarIcon: ({ focused, color, size }) => {
                     let iconName;
                     if (route.name === 'Home') iconName = focused ? 'home' : 'home-outline';
@@ -52,12 +51,11 @@ function MainTabNavigator() {
                     else if (route.name === 'Upload') iconName = focused ? 'add-circle' : 'add-circle-outline';
                     else if (route.name === 'Favourites') iconName = focused ? 'heart' : 'heart-outline';
                     else if (route.name === 'Profile') iconName = focused ? 'person' : 'person-outline';
-
-                    return <Ionicons name={iconName} size={size} color={color} />;
+                    return <Ionicons name={iconName} size={focused ? size : size - 1} color={color} />;
                 },
             })}
         >
-            <Tab.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
+            <Tab.Screen name="Home" component={HomeScreen} />
             <Tab.Screen name="Categories" component={CategoriesScreen} />
             <Tab.Screen
                 name="Upload"
@@ -67,11 +65,8 @@ function MainTabNavigator() {
                     tabPress: async (e) => {
                         e.preventDefault();
                         const { data: { session } } = await supabase.auth.getSession();
-                        if (!session?.user) {
-                            navigation.navigate('Auth');
-                        } else {
-                            navigation.navigate('Upload');
-                        }
+                        if (!session?.user) { navigation.navigate('Auth'); }
+                        else { navigation.navigate('Upload'); }
                     },
                 })}
             />
@@ -101,16 +96,16 @@ function AppNavigator() {
             screenOptions={{
                 headerStyle: { backgroundColor: colors.background },
                 headerTintColor: colors.primary,
+                headerShadowVisible: false,
+                headerBackTitleVisible: false,
             }}
         >
             <Stack.Screen name="Splash" component={SplashScreen} options={{ headerShown: false }} />
             <Stack.Screen name="MainApp" component={MainTabNavigator} options={{ headerShown: false }} />
             <Stack.Screen name="Lyrics" component={LyricScreen} options={{ title: '' }} />
-            <Stack.Screen name="Language" component={LanguageScreen} options={({ route }) => ({ title: route.params.categoryName })} />
-            <Stack.Screen name="Auth" component={AuthScreen} options={{ title: 'Login' }} />
+            <Stack.Screen name="Language" component={LanguageScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="Auth" component={AuthScreen} options={{ headerShown: false }} />
             <Stack.Screen name="Admin" component={AdminScreen} options={{ title: 'Admin Portal' }} />
-
-            {/* THE FIX: Perfectly wired Settings Component */}
             <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
         </Stack.Navigator>
     );
