@@ -16,23 +16,30 @@ export default function FavouritesScreen({ navigation }) {
     const [refreshing, setRefreshing] = useState(false);
     const [userId, setUserId] = useState(null);
 
-    const fetchFavorites = useCallback(async () => {
+    const fetchFavorites = useCallback(async (showLoader = false) => {
+        if (showLoader) setLoading(true);
         const { data: { session } } = await supabase.auth.getSession();
         const user = session?.user || null;
         if (!user) { setUserId(null); setFavoriteSongs([]); setLoading(false); return; }
         setUserId(user.id);
         const { data: favData, error: favError } = await supabase
-            .from('favorites').select('song_id').eq('user_id', user.id);
+            .from('favorites')
+            .select('songs:songs(id, title, artist, category, status)')
+            .eq('user_id', user.id);
         if (favError || !favData || favData.length === 0) { setFavoriteSongs([]); setLoading(false); return; }
-        const songIds = favData.map(f => f.song_id);
-        const { data: songsData, error: songsError } = await safeFetchSongsByIds(songIds, 3);
-        if (!songsError) setFavoriteSongs(songsData || []);
+        const songs = favData
+            .map(item => {
+                if (!item.songs) return null;
+                return Array.isArray(item.songs) ? item.songs[0] : item.songs;
+            })
+            .filter(Boolean);
+        setFavoriteSongs(songs);
         setLoading(false);
     }, []);
 
     useFocusEffect(useCallback(() => {
-        setLoading(true); fetchFavorites();
-    }, [fetchFavorites]));
+        fetchFavorites(favoriteSongs.length === 0);
+    }, [fetchFavorites, favoriteSongs]));
 
     const onRefresh = useCallback(async () => {
         setRefreshing(true); await fetchFavorites(); setRefreshing(false);

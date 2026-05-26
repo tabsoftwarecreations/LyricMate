@@ -1,15 +1,52 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { StatusBar } from 'expo-status-bar';
+import { safeFetchSongById } from './supabase';
 
 export default function LyricScreen({ navigation, route }) {
     const { colors, theme, fontSize, readingLanguage } = useTheme();
-    const song = route?.params?.song || {};
+    const initialSong = route?.params?.song || {};
+
+    const [song, setSong] = useState(initialSong);
+    const [loading, setLoading] = useState(!initialSong.lyrics && !initialSong.transliterations);
+    const [error, setError] = useState(null);
+    const [retryCount, setRetryCount] = useState(0);
 
     const [activeLang, setActiveLang] = useState(readingLanguage || 'English');
     const languages = ['English', 'Malayalam', 'Kannada'];
+
+    useEffect(() => {
+        let isMounted = true;
+        const fetchLyrics = async () => {
+            if (!song.id) return;
+            if (song.lyrics || song.transliterations) {
+                setLoading(false);
+                return;
+            }
+            setLoading(true);
+            setError(null);
+            try {
+                const { data, error: fetchError } = await safeFetchSongById(song.id);
+                if (isMounted) {
+                    if (fetchError || !data) {
+                        setError('Could not load lyrics. Please check your connection.');
+                    } else {
+                        setSong(data);
+                    }
+                    setLoading(false);
+                }
+            } catch (err) {
+                if (isMounted) {
+                    setError('Could not load lyrics. Please check your connection.');
+                    setLoading(false);
+                }
+            }
+        };
+        fetchLyrics();
+        return () => { isMounted = false; };
+    }, [song.id, retryCount]);
 
     // ── original logic untouched ──
     const getLyricsToDisplay = () => {
@@ -102,9 +139,27 @@ export default function LyricScreen({ navigation, route }) {
                     {/* Top accent bar */}
                     <View style={[styles.lyricsAccentBar, { backgroundColor: colors.primary }]} />
 
-                    <Text style={[styles.lyrics, { color: colors.text, fontSize: fontSize, lineHeight: fontSize * 2.2 }]}>
-                        {getLyricsToDisplay()}
-                    </Text>
+                    {loading ? (
+                        <View style={styles.loaderContainer}>
+                            <ActivityIndicator size="large" color={colors.primary} />
+                            <Text style={[styles.loadingText, { color: colors.secondaryText }]}>Loading lyrics...</Text>
+                        </View>
+                    ) : error ? (
+                        <View style={styles.errorContainer}>
+                            <Ionicons name="alert-circle-outline" size={32} color={colors.danger} style={{ marginBottom: 8 }} />
+                            <Text style={[styles.errorText, { color: colors.danger }]}>{error}</Text>
+                            <TouchableOpacity
+                                style={[styles.retryButton, { backgroundColor: colors.primary }]}
+                                onPress={() => setRetryCount(prev => prev + 1)}
+                            >
+                                <Text style={styles.retryButtonText}>Retry</Text>
+                            </TouchableOpacity>
+                        </View>
+                    ) : (
+                        <Text style={[styles.lyrics, { color: colors.text, fontSize: fontSize, lineHeight: fontSize * 2.2 }]}>
+                            {getLyricsToDisplay()}
+                        </Text>
+                    )}
                 </View>
 
                 {/* Font size hint row */}
@@ -227,4 +282,41 @@ const styles = StyleSheet.create({
     fontHintText: { flex: 1, fontSize: 12, fontWeight: '500' },
 
     bottomSpacer: { height: 100 },
+
+    loaderContainer: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 50,
+    },
+    loadingText: {
+        marginTop: 12,
+        fontSize: 14,
+        fontWeight: '600',
+    },
+    errorContainer: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 40,
+        paddingHorizontal: 20,
+    },
+    errorText: {
+        fontSize: 14,
+        fontWeight: '600',
+        textAlign: 'center',
+        marginBottom: 16,
+    },
+    retryButton: {
+        paddingVertical: 10,
+        paddingHorizontal: 22,
+        borderRadius: 12,
+        elevation: 2,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+    },
+    retryButtonText: {
+        color: '#FFFFFF',
+        fontWeight: '700',
+        fontSize: 14,
+    },
 });

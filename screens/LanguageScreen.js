@@ -22,21 +22,31 @@ export default function LanguageScreen({ route, navigation }) {
     // ── all original logic untouched ──
     useFocusEffect(useCallback(() => {
         const fetchData = async () => {
-            setLoading(true);
+            if (songs.length === 0) {
+                setLoading(true);
+            }
             const { data: { session } } = await supabase.auth.getSession();
             const currentUserId = session?.user ? session.user.id : null;
             setUserId(currentUserId);
-            const { data: songsData, error: songsError } = await safeFetchSongs(categoryName, 3);
-            if (!songsError) setSongs(songsData || []);
-            if (currentUserId) {
-                const { data: favData, error: favError } = await supabase
-                    .from('favorites').select('song_id').eq('user_id', currentUserId);
-                if (!favError) setFavorites(favData?.map(f => f.song_id) || []);
-            } else { setFavorites([]); }
+
+            // Fetch songs and favorites in parallel
+            const songsPromise = safeFetchSongs(categoryName, 3);
+            const favoritesPromise = currentUserId
+                ? supabase.from('favorites').select('song_id').eq('user_id', currentUserId)
+                : Promise.resolve({ data: [], error: null });
+
+            const [songsResult, favoritesResult] = await Promise.all([songsPromise, favoritesPromise]);
+
+            if (!songsResult.error) setSongs(songsResult.data || []);
+            if (!favoritesResult.error && favoritesResult.data) {
+                setFavorites(favoritesResult.data.map(f => f.song_id));
+            } else {
+                setFavorites([]);
+            }
             setLoading(false);
         };
         fetchData();
-    }, [categoryName]));
+    }, [categoryName, songs]));
 
     const onRefresh = useCallback(async () => {
         setRefreshing(true);

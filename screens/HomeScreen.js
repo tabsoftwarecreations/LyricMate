@@ -47,23 +47,23 @@ export default function HomeScreen({ navigation }) {
             const currentUserId = session?.user ? session.user.id : null;
             setUserId(currentUserId);
 
-            const { data: songsData, error: songsError } = await safeFetchSongs(null, 3);
+            // Fetch songs and favorites in parallel
+            const songsPromise = safeFetchSongs(null, 3);
+            const favoritesPromise = currentUserId
+                ? supabase.from('favorites').select('song_id').eq('user_id', currentUserId)
+                : Promise.resolve({ data: [], error: null });
 
-            if (songsError) {
-                console.error('Songs fetch error after retries:', songsError);
+            const [songsResult, favoritesResult] = await Promise.all([songsPromise, favoritesPromise]);
+
+            if (songsResult.error) {
+                console.error('Songs fetch error after retries:', songsResult.error);
                 setError('Could not load songs. Pull down to retry.');
             } else {
-                setSongs(songsData || []);
+                setSongs(songsResult.data || []);
             }
 
-            if (currentUserId) {
-                const { data: favData, error: favError } = await supabase
-                    .from('favorites')
-                    .select('song_id')
-                    .eq('user_id', currentUserId);
-                if (!favError && favData) {
-                    setFavorites(favData.map(f => f.song_id));
-                }
+            if (!favoritesResult.error && favoritesResult.data) {
+                setFavorites(favoritesResult.data.map(f => f.song_id));
             } else {
                 setFavorites([]);
             }
@@ -74,9 +74,11 @@ export default function HomeScreen({ navigation }) {
     }, []);
 
     useFocusEffect(useCallback(() => {
-        setLoading(true);
+        if (songs.length === 0) {
+            setLoading(true);
+        }
         fetchAllData().finally(() => setLoading(false));
-    }, [fetchAllData]));
+    }, [fetchAllData, songs]));
 
     const onRefresh = useCallback(async () => {
         setRefreshing(true);

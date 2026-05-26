@@ -21,7 +21,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 export async function safeFetchSongs(categoryName = null, retries = 3) {
     // 1. Try direct native fetch API first (highly reliable and instant)
     try {
-        let url = `${supabaseUrl}/rest/v1/songs?status=eq.approved&order=title.asc`;
+        let url = `${supabaseUrl}/rest/v1/songs?select=id,title,artist,category,status&status=eq.approved&order=title.asc`;
         if (categoryName) {
             url += `&category=eq.${encodeURIComponent(categoryName)}`;
         }
@@ -48,7 +48,7 @@ export async function safeFetchSongs(categoryName = null, retries = 3) {
     let lastError = null;
     for (let attempt = 1; attempt <= retries; attempt++) {
         try {
-            let query = supabase.from('songs').select('*').eq('status', 'approved');
+            let query = supabase.from('songs').select('id,title,artist,category,status').eq('status', 'approved');
             if (categoryName) {
                 query = query.eq('category', categoryName);
             }
@@ -123,7 +123,7 @@ export async function safeFetchSongsByIds(songIds, retries = 3) {
 
     // 1. Try direct native fetch API first (highly reliable and instant)
     try {
-        let url = `${supabaseUrl}/rest/v1/songs?id=in.(${songIds.join(',')})&order=title.asc`;
+        let url = `${supabaseUrl}/rest/v1/songs?select=id,title,artist,category,status&id=in.(${songIds.join(',')})&order=title.asc`;
         const response = await fetch(url, {
             method: 'GET',
             headers: {
@@ -148,7 +148,7 @@ export async function safeFetchSongsByIds(songIds, retries = 3) {
         try {
             const { data, error } = await supabase
                 .from('songs')
-                .select('*')
+                .select('id,title,artist,category,status')
                 .in('id', songIds)
                 .order('title', { ascending: true });
             if (!error) return { data, error: null };
@@ -162,6 +162,56 @@ export async function safeFetchSongsByIds(songIds, retries = 3) {
     }
 
     return { data: null, error: lastError || new Error('Failed to fetch songs by ids') };
+}
+
+/**
+ * Robust helper to fetch a single song by its ID (including full lyrics and transliterations).
+ * Uses a native HTTP fetch fallback to bypass Cloudflare 520 errors.
+ */
+export async function safeFetchSongById(songId, retries = 3) {
+    if (!songId) return { data: null, error: new Error('Invalid song ID') };
+
+    // 1. Try direct native fetch API first (highly reliable and instant)
+    try {
+        let url = `${supabaseUrl}/rest/v1/songs?id=eq.${songId}`;
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'apikey': supabaseAnonKey,
+                'Authorization': `Bearer ${supabaseAnonKey}`,
+                'Content-Type': 'application/json',
+            }
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            return { data: data && data.length > 0 ? data[0] : null, error: null };
+        }
+        console.warn(`Direct fetch song by id returned status: ${response.status}. Falling back to Supabase client...`);
+    } catch (err) {
+        console.warn('Direct fetch song by id failed. Falling back to Supabase client...', err);
+    }
+
+    // 2. Fallback to Supabase client if direct fetch failed
+    let lastError = null;
+    for (let attempt = 1; attempt <= retries; attempt++) {
+        try {
+            const { data, error } = await supabase
+                .from('songs')
+                .select('*')
+                .eq('id', songId)
+                .single();
+            if (!error) return { data, error: null };
+            lastError = error;
+        } catch (err) {
+            lastError = err;
+        }
+        if (attempt < retries) {
+            await new Promise(r => setTimeout(r, attempt * 500));
+        }
+    }
+
+    return { data: null, error: lastError || new Error('Failed to fetch song by id') };
 }
 
 /**
