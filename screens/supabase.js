@@ -328,3 +328,162 @@ export async function safeDeleteSong(songId) {
         return { error: err };
     }
 }
+
+/**
+ * Robust helper to insert a user favorite.
+ * Uses a native HTTP POST request with authenticated session JWT token to bypass Cloudflare 520 errors.
+ */
+export async function safeInsertFavorite(userId, songId) {
+    if (!userId || !songId) return { error: new Error('Invalid arguments') };
+
+    // 1. Try direct native fetch API first (bypasses Cloudflare 520 errors)
+    try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const accessToken = session?.access_token;
+        if (!accessToken) throw new Error('No active session token');
+
+        const response = await fetch(`${supabaseUrl}/rest/v1/favorites`, {
+            method: 'POST',
+            headers: {
+                'apikey': supabaseAnonKey,
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=representation'
+            },
+            body: JSON.stringify({ user_id: userId, song_id: songId })
+        });
+
+        if (response.ok) {
+            return { error: null };
+        }
+        console.warn(`Direct insert favorite returned status: ${response.status}. Falling back to Supabase client...`);
+    } catch (err) {
+        console.warn('Direct insert favorite failed. Falling back to Supabase client...', err);
+    }
+
+    // 2. Fallback to Supabase client
+    try {
+        const { error } = await supabase.from('favorites').insert([{ user_id: userId, song_id: songId }]);
+        return { error };
+    } catch (err) {
+        return { error: err };
+    }
+}
+
+/**
+ * Robust helper to delete a user favorite.
+ * Uses a native HTTP DELETE request with authenticated session JWT token to bypass Cloudflare 520 errors.
+ */
+export async function safeDeleteFavorite(userId, songId) {
+    if (!userId || !songId) return { error: new Error('Invalid arguments') };
+
+    // 1. Try direct native fetch API first (bypasses Cloudflare 520 errors)
+    try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const accessToken = session?.access_token;
+        if (!accessToken) throw new Error('No active session token');
+
+        const response = await fetch(`${supabaseUrl}/rest/v1/favorites?user_id=eq.${userId}&song_id=eq.${songId}`, {
+            method: 'DELETE',
+            headers: {
+                'apikey': supabaseAnonKey,
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (response.ok) {
+            return { error: null };
+        }
+        console.warn(`Direct delete favorite returned status: ${response.status}. Falling back to Supabase client...`);
+    } catch (err) {
+        console.warn('Direct delete favorite failed. Falling back to Supabase client...', err);
+    }
+
+    // 2. Fallback to Supabase client
+    try {
+        const { error } = await supabase.from('favorites').delete().eq('user_id', userId).eq('song_id', songId);
+        return { error };
+    } catch (err) {
+        return { error: err };
+    }
+}
+
+/**
+ * Robust helper to fetch all favorites for a user.
+ * Uses a native HTTP GET request with authenticated session JWT token to bypass Cloudflare 520 errors.
+ */
+export async function safeFetchFavorites(userId, retries = 3) {
+    if (!userId) return { data: [], error: null };
+
+    // 1. Try direct native fetch API first (bypasses Cloudflare 520 errors)
+    try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const accessToken = session?.access_token;
+        if (!accessToken) throw new Error('No active session token');
+
+        const response = await fetch(`${supabaseUrl}/rest/v1/favorites?select=song_id&user_id=eq.${userId}`, {
+            method: 'GET',
+            headers: {
+                'apikey': supabaseAnonKey,
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            return { data, error: null };
+        }
+        console.warn(`Direct fetch favorites returned status: ${response.status}. Falling back to Supabase client...`);
+    } catch (err) {
+        console.warn('Direct fetch favorites failed. Falling back to Supabase client...', err);
+    }
+
+    // 2. Fallback to Supabase client
+    let lastError = null;
+    for (let attempt = 1; attempt <= retries; attempt++) {
+        try {
+            const { data, error } = await supabase
+                .from('favorites')
+                .select('song_id')
+                .eq('user_id', userId);
+            if (!error) return { data, error: null };
+            lastError = error;
+        } catch (err) {
+            lastError = err;
+        }
+        if (attempt < retries) {
+            await new Promise(r => setTimeout(r, attempt * 500));
+        }
+    }
+
+    return { data: null, error: lastError || new Error('Failed to fetch favorites') };
+}
+
+// Local favorites key
+const LOCAL_FAVS_KEY = '@lyricmate_local_favorites';
+
+/**
+ * Loads favorite IDs from AsyncStorage.
+ */
+export async function getLocalFavorites() {
+    try {
+        const val = await AsyncStorage.getItem(LOCAL_FAVS_KEY);
+        return val ? JSON.parse(val) : [];
+    } catch (e) {
+        console.warn('Error reading local favorites:', e);
+        return [];
+    }
+}
+
+/**
+ * Saves favorite IDs to AsyncStorage.
+ */
+export async function saveLocalFavorites(favs) {
+    try {
+        await AsyncStorage.setItem(LOCAL_FAVS_KEY, JSON.stringify(favs));
+    } catch (e) {
+        console.warn('Error writing local favorites:', e);
+    }
+}

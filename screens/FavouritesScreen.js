@@ -1,10 +1,10 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
     StyleSheet, Text, View, FlatList, TouchableOpacity,
-    ActivityIndicator, RefreshControl
+    ActivityIndicator, RefreshControl, Alert
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase, safeFetchSongsByIds } from './supabase';
+import { supabase, safeFetchSongsByIds, safeFetchFavorites, safeDeleteFavorite, getLocalFavorites, saveLocalFavorites } from './supabase';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../context/ThemeContext';
 import { StatusBar } from 'expo-status-bar';
@@ -15,39 +15,67 @@ export default function FavouritesScreen({ navigation }) {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [userId, setUserId] = useState(null);
+    const hasLoadedRef = useRef(false);
 
     const fetchFavorites = useCallback(async (showLoader = false) => {
         if (showLoader) setLoading(true);
         const { data: { session } } = await supabase.auth.getSession();
         const user = session?.user || null;
-        if (!user) { setUserId(null); setFavoriteSongs([]); setLoading(false); return; }
-        setUserId(user.id);
-        const { data: favData, error: favError } = await supabase
-            .from('favorites')
-            .select('songs:songs(id, title, artist, category, status)')
-            .eq('user_id', user.id);
-        if (favError || !favData || favData.length === 0) { setFavoriteSongs([]); setLoading(false); return; }
-        const songs = favData
-            .map(item => {
-                if (!item.songs) return null;
-                return Array.isArray(item.songs) ? item.songs[0] : item.songs;
-            })
-            .filter(Boolean);
-        setFavoriteSongs(songs);
+        setUserId(user?.id || null);
+
+        let songIds = [];
+        
+        if (user) {
+            const { data: favData, error: favError } = await safeFetchFavorites(user.id, 3);
+            const localFavs = await getLocalFavorites();
+            if (!favError && favData) {
+                const serverFavIds = favData.map(f => f.song_id);
+                // Local-first merge
+                songIds = Array.from(new Set([...localFavs, ...serverFavIds]));
+                await saveLocalFavorites(songIds);
+            } else {
+                songIds = localFavs;
+            }
+        } else {
+            songIds = await getLocalFavorites();
+        }
+
+        if (songIds.length === 0) {
+            setFavoriteSongs([]);
+            setLoading(false);
+            return;
+        }
+
+        const { data: songsData, error: songsError } = await safeFetchSongsByIds(songIds, 3);
+        if (!songsError) {
+            setFavoriteSongs(songsData || []);
+            hasLoadedRef.current = true;
+        }
         setLoading(false);
     }, []);
 
     useFocusEffect(useCallback(() => {
-        fetchFavorites(favoriteSongs.length === 0);
-    }, [fetchFavorites, favoriteSongs]));
+        fetchFavorites(!hasLoadedRef.current);
+    }, [fetchFavorites]));
 
     const onRefresh = useCallback(async () => {
         setRefreshing(true); await fetchFavorites(); setRefreshing(false);
     }, [fetchFavorites]);
 
     const removeFavorite = async (songId) => {
-        const { error } = await supabase.from('favorites').delete().eq('user_id', userId).eq('song_id', songId);
-        if (!error) setFavoriteSongs(favoriteSongs.filter(s => s.id !== songId));
+        // Remove locally first
+        const localFavs = await getLocalFavorites();
+        const updatedFavs = localFavs.filter(id => id !== songId);
+        await saveLocalFavorites(updatedFavs);
+        setFavoriteSongs(favoriteSongs.filter(s => s.id !== songId));
+
+        if (userId) {
+            try {
+                await safeDeleteFavorite(userId, songId);
+            } catch (err) {
+                console.warn('Background delete favorite failed:', err);
+            }
+        }
     };
 
     // Category accent colours — matches the design palette
